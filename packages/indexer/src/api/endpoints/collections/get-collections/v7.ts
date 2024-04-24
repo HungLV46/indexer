@@ -24,6 +24,7 @@ import { Sources } from "@/models/sources";
 import { Assets, ImageSize } from "@/utils/assets";
 import * as erc721c from "@/utils/erc721c";
 import * as marketplaceBlacklist from "@/utils/marketplace-blacklists";
+import { isSharedContract } from "@/metadata/extend";
 
 const version = "v7";
 
@@ -222,6 +223,7 @@ export const getCollectionsV7Options: RouteOptions = {
           primaryContract: Joi.string().lowercase().pattern(regex.address),
           tokenSetId: Joi.string().allow(null),
           creator: Joi.string().allow(null),
+          isSharedContract: Joi.boolean().default(false),
           royalties: Joi.object({
             recipient: Joi.string().allow("", null),
             breakdown: Joi.array().items(
@@ -523,9 +525,7 @@ export const getCollectionsV7Options: RouteOptions = {
               tokens.image
             FROM tokens
             WHERE tokens.collection_id = collections.id
-            ORDER BY rarity_rank ${query.sortDirection} NULLS ${
-        query.sortDirection === "asc" ? "FIRST" : "LAST"
-      }
+            ORDER BY rarity_rank DESC NULLS LAST
             LIMIT 4
           ) AS sample_images
         FROM collections
@@ -856,6 +856,7 @@ export const getCollectionsV7Options: RouteOptions = {
               primaryContract: fromBuffer(r.contract),
               tokenSetId: r.token_set_id,
               creator: r.creator ? fromBuffer(r.creator) : null,
+              isSharedContract: isSharedContract(fromBuffer(r.contract)),
               royalties: r.royalties
                 ? {
                     // Main recipient, kept for backwards-compatibility only

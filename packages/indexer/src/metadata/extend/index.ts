@@ -57,6 +57,9 @@ export const hasExtendCollectionHandler = (contract: string) =>
 export const isOpenseaSlugSharedContract = (contract: string) =>
   extendCollection[`${config.chainId},${contract}`]?.constructor?.name === "ExtendLogic";
 
+export const isSharedContract = (contract: string) =>
+  Boolean(extendCollection[`${config.chainId},${contract.toLowerCase()}`]?.isSharedContract);
+
 export const extendCollectionMetadata = async (metadata: any, tokenId?: string) => {
   if (metadata) {
     if (extendCollection[`${config.chainId},${metadata.id}`]) {
@@ -100,6 +103,7 @@ export const extendMetadata = async (metadata: TokenMetadata) => {
 
 class ExtendLogic {
   public prefix: string;
+  public isSharedContract = true;
 
   constructor(prefix: string) {
     this.prefix = prefix;
@@ -112,6 +116,7 @@ class ExtendLogic {
 
     return { ...metadata };
   }
+
   public async extend(metadata: TokenMetadata) {
     metadata.collection = `${metadata.contract}:${this.prefix}-${metadata.slug}`;
     return { ...metadata };
@@ -121,6 +126,7 @@ class ExtendLogic {
 const ExtendLogicClasses = {
   opensea: new ExtendLogic("opensea"),
   courtyard: new ExtendLogic("courtyard"),
+  feralfile: new ExtendLogic("feralfile"),
 };
 
 // Opensea Shared Contract
@@ -140,6 +146,9 @@ extendCollection["137,0x2953399124f0cbb46d2cbacd8a89cf0599974963"] = ExtendLogic
 
 // Courtyard
 extendCollection["1,0xd4ac3ce8e1e14cd60666d49ac34ff2d2937cf6fa"] = ExtendLogicClasses.courtyard;
+
+// Feralfile
+extendCollection["1,0x28b51ba8b990c48cb22cb6ef0ad5415fdba5210c"] = ExtendLogicClasses.feralfile;
 
 // CyberKongz
 extendCollection["1,0x57a204aa1042f6e66dd7730813f4024114d74f37"] = cyberkongz;
@@ -231,12 +240,14 @@ extend["1,0x13927739076014913a3a7c207ef84c5be4780014"] = ExtendLogicClasses.open
 extend["1,0x7a15b36cb834aea88553de69077d3777460d73ac"] = ExtendLogicClasses.opensea;
 extend["1,0x68d0f6d1d99bb830e17ffaa8adb5bbed9d6eec2e"] = ExtendLogicClasses.opensea;
 extend["1,0x33eecbf908478c10614626a9d304bfe18b78dd73"] = ExtendLogicClasses.opensea;
-extend["1,0x495f947276749ce646f68ac8c248420045cb7b5e"] = ExtendLogicClasses.opensea;
 extend["1,0x48b17a2c46007471b3eb72d16268eaecdd1502b7"] = ExtendLogicClasses.opensea;
 extend["137,0x2953399124f0cbb46d2cbacd8a89cf0599974963"] = ExtendLogicClasses.opensea;
 
 // Courtyard
 extend["1,0xd4ac3ce8e1e14cd60666d49ac34ff2d2937cf6fa"] = courtyard;
+
+// Feralfile
+extend["1,0x28b51ba8b990c48cb22cb6ef0ad5415fdba5210c"] = ExtendLogicClasses.feralfile;
 
 // CyberKongz
 extend["1,0x57a204aa1042f6e66dd7730813f4024114d74f37"] = cyberkongz;

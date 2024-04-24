@@ -48,13 +48,13 @@ export const fetchTransaction = async (txHash: string) => {
     return JSON.parse(redisTx);
   }
 
-  // get from database
+  // Get from database
   const dbTx = await getTransaction(txHash);
   if (dbTx) {
     return dbTx;
   }
 
-  // get from provider
+  // Get from provider
   let tx = await baseProvider.getTransaction(txHash);
   if (!tx) {
     return undefined;

@@ -187,7 +187,7 @@ export const getOnChainRoyalties = async (contract: string, tokenId: string, spe
 
   if (!result) {
     result = await internalGetOnChainRoyalties(contract, tokenId, spec);
-    await redis.set(cacheKey, JSON.stringify(result), "EX", 5 * 60);
+    await redis.set(cacheKey, JSON.stringify(result), "EX", 60 * 60);
   }
 
   return result;

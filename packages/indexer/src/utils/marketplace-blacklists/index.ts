@@ -45,14 +45,9 @@ export const checkMarketplaceIsFiltered = async (
     return customCheck;
   }
 
-  const erc721cCheck = await erc721c.v1.checkMarketplaceIsFiltered(contract, operators);
+  const erc721cCheck = await erc721c.checkMarketplaceIsFiltered(contract, operators);
   if (erc721cCheck) {
     return erc721cCheck;
-  }
-
-  const erc721cV2Check = await erc721c.v2.checkMarketplaceIsFiltered(contract, operators);
-  if (erc721cV2Check) {
-    return erc721cV2Check;
   }
 
   return operators.some((c) => result!.includes(c));
@@ -101,6 +96,18 @@ export const isBlockedByCustomLogic = async (
       [
         "0xc379e535caff250a01caa6c3724ed1359fe5c29b",
         "0xccc1825cf04cae4d497b202d1434ec0f79ee535f",
+      ].includes(contract) &&
+      operators.includes(OPENSEA)
+    ) {
+      result = true;
+      blacklist = [OPENSEA];
+    }
+
+    if (
+      config.chainId === 137 &&
+      [
+        "0x4768cbf202f365fbf704b9b9d397551a0443909b",
+        "0xb6fd6ba3fc87816e1a5450a02f69577dfa46a475",
       ].includes(contract) &&
       operators.includes(OPENSEA)
     ) {

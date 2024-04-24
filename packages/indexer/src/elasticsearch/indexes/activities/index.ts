@@ -1366,14 +1366,13 @@ export const updateActivitiesMissingCollection = async (
           {
             script: {
               source:
-                "ctx._source.collection = [:]; ctx._source.collection.id = params.collection_id; ctx._source.collection.name = params.collection_name; ctx._source.collection.image = params.collection_image; ctx._source.collection.isSpam = params.collection_is_spam; ctx._source.collection.isNsfw = params.collection_is_nsfw; ctx._source.collection.imageVersion = params.collection_image_version;",
+                "ctx._source.collection = [:]; ctx._source.collection.id = params.collection_id; ctx._source.collection.name = params.collection_name; ctx._source.collection.image = params.collection_image; ctx._source.collection.isSpam = params.collection_is_spam; ctx._source.collection.isNsfw = params.collection_is_nsfw;",
               params: {
                 collection_id: collection.id,
                 collection_name: collection.name,
                 collection_image: collection.metadata?.imageUrl,
                 collection_is_spam: Number(collection.isSpam) > 0,
                 collection_is_nsfw: Number(collection.nsfwStatus) > 0,
-                collection_image_version: collection.imageVersion,
               },
             },
           },
@@ -1521,14 +1520,13 @@ export const updateActivitiesCollection = async (
           {
             script: {
               source:
-                "ctx._source.collection = [:]; ctx._source.collection.id = params.collection_id; ctx._source.collection.name = params.collection_name; ctx._source.collection.image = params.collection_image; ctx._source.collection.isSpam = params.collection_is_spam; ctx._source.collection.isNsfw = params.collection_is_nsfw; ctx._source.collection.imageVersion = params.collection_image_version;",
+                "ctx._source.collection = [:]; ctx._source.collection.id = params.collection_id; ctx._source.collection.name = params.collection_name; ctx._source.collection.image = params.collection_image; ctx._source.collection.isSpam = params.collection_is_spam; ctx._source.collection.isNsfw = params.collection_is_nsfw;",
               params: {
                 collection_id: newCollection.id,
                 collection_name: newCollection.name,
                 collection_image: newCollection.metadata?.imageUrl,
                 collection_is_spam: Number(newCollection.isSpam) > 0,
                 collection_is_nsfw: Number(newCollection.nsfwStatus) > 0,
-                collection_image_version: newCollection.imageVersion,
               },
             },
           },
@@ -1559,6 +1557,8 @@ export const updateActivitiesCollection = async (
       } else {
         keepGoing = pendingUpdateDocuments.length === 1000;
 
+        const hasErrorItems = response?.items?.filter((item) => item.update?.error);
+
         logger.info(
           "elasticsearch-activities",
           JSON.stringify({
@@ -1571,6 +1571,8 @@ export const updateActivitiesCollection = async (
             keepGoing,
             pendingUpdateDocumentsCount: pendingUpdateDocuments.length,
             queryJson: JSON.stringify(query),
+            hasErrorItems: hasErrorItems?.length > 0,
+            errorItems: hasErrorItems?.length > 0 ? JSON.stringify(hasErrorItems) : undefined,
           })
         );
       }

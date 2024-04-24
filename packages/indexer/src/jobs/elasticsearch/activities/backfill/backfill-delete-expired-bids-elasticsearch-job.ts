@@ -38,7 +38,7 @@ export class BackfillDeleteExpiredBidsElasticsearchJob extends AbstractRabbitMqJ
         types: [ActivityType.bid],
         continuation: cursor,
         sortBy: "timestamp",
-        sortDirection: "asc",
+        sortDirection: "desc",
         limit: Number(limit),
       },
       true
@@ -119,7 +119,7 @@ export class BackfillDeleteExpiredBidsElasticsearchJob extends AbstractRabbitMqJ
     }
   }
 
-  public async addToQueue(collectionId?: string, cursor?: string | null, delay = 1000) {
+  public async addToQueue(collectionId?: string, cursor?: string | null, delay = 5000) {
     if (!config.doElasticsearchWork) {
       return;
     }

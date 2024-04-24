@@ -3,6 +3,7 @@ import _ from "lodash";
 import { logger } from "@/common/logger";
 import { AbstractRabbitMqJobHandler } from "@/jobs/abstract-rabbit-mq-job-handler";
 import * as orders from "@/orderbook/orders";
+import { config } from "@/config/index";
 
 type CommonOrderInfo = {
   delayBeforeProcessing?: number;
@@ -143,6 +144,11 @@ export const processOrder = async (job: AbstractRabbitMqJobHandler, payload: Gen
         break;
       }
 
+      case "seaport-v1.6": {
+        result = await orders.seaportV16.save([info], validateBidValue, ingestMethod, ingestDelay);
+        break;
+      }
+
       case "sudoswap": {
         result = await orders.sudoswap.save([info]);
         break;
@@ -208,13 +214,14 @@ export const processOrder = async (job: AbstractRabbitMqJobHandler, payload: Gen
     throw error;
   }
 
-  if (_.random(100) <= 75) {
+  if (config.chainId === 11155111 || _.random(100) <= 75) {
     logger.debug(
       job.queueName,
       JSON.stringify({
         message: `[${kind}] Order save result: ${JSON.stringify(result)}`,
         orderKind: kind,
         resultStatus: result[0]?.status,
+        orderInfo: config.chainId === 11155111 ? JSON.stringify(info) : undefined,
       })
     );
   }

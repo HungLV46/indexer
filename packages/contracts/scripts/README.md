@@ -20,7 +20,7 @@ Once the script finalized, make sure to update the corresponding entries in the 
 
 - [`Sdk.SeaportBase.Addresses.ConduitController`](../../sdk/src/seaport-base/addresses.ts)
 - [`Sdk.SeaportBase.Addresses.ConduitControllerCodeHash`](../../sdk/src/seaport-base/addresses.ts)
-- [`Sdk.SeaportV15.Addresses.Exchange`](../../sdk/src/seaport-v1.5/addresses.ts)
+- [`Sdk.SeaportV16.Addresses.Exchange`](../../sdk/src/seaport-v1.6/addresses.ts)
 - [`Sdk.Common.Addresses.Create3Factory`](../../sdk/src/common/addresses.ts)
 
 ##### `reservoir`

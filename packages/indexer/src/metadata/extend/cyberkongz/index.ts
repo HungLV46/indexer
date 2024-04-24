@@ -3,6 +3,9 @@
 import { CollectionMetadata } from "@/metadata/types";
 import _ from "lodash";
 
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 export const extendCollection = async (metadata: CollectionMetadata, _tokenId = null) => {
   let startTokenId;
   let endTokenId;

@@ -5,7 +5,7 @@ import Hapi, { Request } from "@hapi/hapi";
 
 import { idb, pgp, redb } from "@/common/db";
 import { logger } from "@/common/logger";
-import { allChainsSyncRedis, redis } from "@/common/redis";
+import { redis } from "@/common/redis";
 import {
   ApiKeyEntity,
   ApiKeyPermission,
@@ -21,6 +21,7 @@ import tracer from "@/common/tracer";
 import flat from "flat";
 import { fromBuffer, regex } from "@/common/utils";
 import { syncApiKeysJob } from "@/jobs/api-keys/sync-api-keys-job";
+import { AllChainsPubSub, PubSub } from "@/pubsub/index";
 
 export type ApiKeyRecord = {
   appName: string;
@@ -84,7 +85,7 @@ export class ApiKeyManager {
     // Sync to other chains only if created on mainnet
     if (created && config.chainId === 1) {
       await ApiKeyManager.notifyApiKeyCreated(values);
-      await allChainsSyncRedis.publish(AllChainsChannel.ApiKeyCreated, JSON.stringify({ values }));
+      await AllChainsPubSub.publish(AllChainsChannel.ApiKeyCreated, JSON.stringify({ values }));
 
       // Trigger delayed jobs to make sure all chains have the new api key
       await syncApiKeysJob.addToQueue({ apiKey: values.key }, 30 * 1000);
@@ -364,12 +365,15 @@ export class ApiKeyManager {
 
   public static async update(key: string, fields: ApiKeyUpdateParams) {
     let updateString = "updated_at = now(),";
+    const updatedFields: string[] = [];
     const replacementValues = {
       key,
     };
 
     _.forEach(fields, (value, fieldName) => {
       if (!_.isUndefined(value)) {
+        updatedFields.push(fieldName);
+
         if (_.isArray(value)) {
           value.forEach((v, k) => {
             if (fieldName === "origins") {
@@ -396,24 +400,37 @@ export class ApiKeyManager {
 
     updateString = _.trimEnd(updateString, ",");
 
-    const query = `UPDATE api_keys
-                   SET ${updateString}
-                   WHERE key = $/key/`;
+    const query = `
+      WITH old_values AS (
+        SELECT *
+        FROM api_keys
+        WHERE key = $/key/
+      )
+  
+     UPDATE api_keys
+     SET ${updateString}
+     WHERE key = $/key/
+     RETURNING ${updatedFields
+       .map((fieldName) => `(SELECT ${fieldName} FROM old_values) AS "old_${fieldName}"`)
+       .join(",")}`;
 
-    await idb.none(query, replacementValues);
+    const oldValues = await idb.manyOrNone(query, replacementValues);
 
     await ApiKeyManager.deleteCachedApiKey(key); // reload the cache
-    await redis.publish(Channel.ApiKeyUpdated, JSON.stringify({ key }));
+    await PubSub.publish(Channel.ApiKeyUpdated, JSON.stringify({ key }));
 
     // Sync to other chains only if created on mainnet
     if (config.chainId === 1) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.ApiKeyUpdated,
         JSON.stringify({ key, fields })
       );
     }
 
-    logger.info("api-key", `Update key ${key} with ${JSON.stringify(fields)}`);
+    logger.info(
+      "api-key",
+      `Update key ${key} with ${JSON.stringify(fields)}, oldValues=${JSON.stringify(oldValues)}`
+    );
   }
 
   static async notifyApiKeyCreated(values: ApiKeyRecord) {

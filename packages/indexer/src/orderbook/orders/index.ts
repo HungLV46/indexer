@@ -35,6 +35,7 @@ import { BidDetails, ListingDetails } from "@reservoir0x/sdk/dist/router/v6/type
 
 import { inject } from "@/api/index";
 import { idb } from "@/common/db";
+import { redis } from "@/common/redis";
 import { config } from "@/config/index";
 import { Sources } from "@/models/sources";
 import { SourcesEntity } from "@/models/sources/sources-entity";
@@ -1110,53 +1111,130 @@ export const checkBlacklistAndFallback = async (
     orderbook: string;
   }
 ) => {
-  // Fallback to Seaport when LooksRare is blocked
-  if (["looks-rare-v2"].includes(params.orderKind) && ["looks-rare"].includes(params.orderbook)) {
-    const isBlocked = await checkMarketplaceIsFiltered(collection, [
-      Sdk.LooksRareV2.Addresses.Exchange[config.chainId],
-      Sdk.LooksRareV2.Addresses.TransferManager[config.chainId],
-    ]);
-    if (isBlocked) {
-      params.orderKind = "seaport-v1.5";
-    }
-  }
-
-  const seaportIsBlocked = await checkMarketplaceIsFiltered(collection, [
-    Sdk.SeaportV15.Addresses.Exchange[config.chainId],
-    new Sdk.SeaportV15.Exchange(config.chainId).deriveConduit(
-      Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId] ?? HashZero
-    ),
-  ]);
-
-  // Fallback to PaymentProcessor when Seaport is blocked
-  if (
-    ["seaport-v1.5"].includes(params.orderKind) &&
-    ["reservoir"].includes(params.orderbook) &&
-    seaportIsBlocked
-  ) {
-    params.orderKind = "payment-processor";
-  }
-
-  // Fallback to Seaport when PaymentProcessor is blocked
-  if (
-    ["payment-processor-v2"].includes(params.orderKind) &&
-    ["reservoir"].includes(params.orderbook)
-  ) {
-    const isBlocked = await checkMarketplaceIsFiltered(collection, [
-      Sdk.PaymentProcessorV2.Addresses.Exchange[config.chainId],
-    ]);
-
-    // https://linear.app/reservoir/issue/PRO-1163/failing-ppv1-purchase
-    // const isBlockedCustom =
-    //   config.chainId === 137 && collection === "0xdbc52cd5b8eda1a7bcbabb838ca927d23e3673e5";
-    const isBlockedCustom = false;
-
-    if (isBlocked || isBlockedCustom) {
-      if (!seaportIsBlocked) {
+  if (config.chainId === 8453) {
+    // Fallback to Seaport when LooksRare is blocked
+    if (["looks-rare-v2"].includes(params.orderKind) && ["looks-rare"].includes(params.orderbook)) {
+      const isBlocked = await checkMarketplaceIsFiltered(collection, [
+        Sdk.LooksRareV2.Addresses.Exchange[config.chainId],
+        Sdk.LooksRareV2.Addresses.TransferManager[config.chainId],
+      ]);
+      if (isBlocked) {
         params.orderKind = "seaport-v1.5";
-      } else {
-        throw new Error("Collection is blocking all supported exchanges");
       }
+    }
+
+    const seaportIsBlocked = await checkMarketplaceIsFiltered(collection, [
+      Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      new Sdk.SeaportV15.Exchange(config.chainId).deriveConduit(
+        Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId] ?? HashZero
+      ),
+    ]);
+
+    // Fallback to PaymentProcessor when Seaport is blocked
+    if (
+      ["seaport-v1.5"].includes(params.orderKind) &&
+      ["reservoir"].includes(params.orderbook) &&
+      seaportIsBlocked
+    ) {
+      params.orderKind = "payment-processor";
+    }
+
+    // Fallback to Seaport when PaymentProcessor is blocked
+    if (
+      ["payment-processor-v2"].includes(params.orderKind) &&
+      ["reservoir"].includes(params.orderbook)
+    ) {
+      const isBlocked = await checkMarketplaceIsFiltered(collection, [
+        Sdk.PaymentProcessorV2.Addresses.Exchange[config.chainId],
+      ]);
+
+      // https://linear.app/reservoir/issue/PRO-1163/failing-ppv1-purchase
+      // const isBlockedCustom =
+      //   config.chainId === 137 && collection === "0xdbc52cd5b8eda1a7bcbabb838ca927d23e3673e5";
+      const isBlockedCustom = false;
+
+      if (isBlocked || isBlockedCustom) {
+        if (!seaportIsBlocked) {
+          params.orderKind = "seaport-v1.5";
+        } else {
+          throw new Error("Collection is blocking all supported exchanges");
+        }
+      }
+    }
+  } else {
+    const errorMsg = "Collection is blocking all supported exchanges";
+
+    const cacheKey = `fallback:${collection}:${params.orderKind}`;
+    const cacheDuration = 30 * 60;
+
+    const cache = await redis.get(cacheKey);
+    if (cache) {
+      if (cache === errorMsg) {
+        throw new Error(errorMsg);
+      } else {
+        params.orderKind = cache as OrderKind;
+      }
+    } else if (params.orderbook === "reservoir") {
+      const openseaConduit = new Sdk.SeaportV15.Exchange(config.chainId).deriveConduit(
+        Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId] ?? HashZero
+      );
+
+      const [seaportV15IsBlocked, seaportV16IsBlocked] = await Promise.all([
+        checkMarketplaceIsFiltered(collection, [
+          Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+          openseaConduit,
+        ]),
+        (async () => {
+          // Seaport 1.6 is not deployed on all chains we support at the moment
+          if (!Sdk.SeaportV16.Addresses.Exchange[config.chainId]) {
+            return true;
+          }
+
+          return checkMarketplaceIsFiltered(collection, [
+            Sdk.SeaportV16.Addresses.Exchange[config.chainId],
+            openseaConduit,
+          ]);
+        })(),
+      ]);
+
+      // Fallback to Seaport v1.6 when Seaport v1.5 is blocked
+      if (params.orderKind === "seaport-v1.5" && seaportV15IsBlocked) {
+        params.orderKind = "seaport-v1.6";
+      }
+
+      // Fallback to PaymentProcessor when Seaport v1.6 is blocked
+      if (params.orderKind === "seaport-v1.6" && seaportV16IsBlocked) {
+        params.orderKind = "payment-processor";
+      }
+
+      // Fallback to PaymentProcessor v2 when PaymentProcessor is blocked
+      if (params.orderKind === "payment-processor") {
+        const paymentProcessorIsBlocked = await checkMarketplaceIsFiltered(collection, [
+          Sdk.PaymentProcessor.Addresses.Exchange[config.chainId],
+        ]);
+        if (paymentProcessorIsBlocked) {
+          params.orderKind = "payment-processor-v2";
+        }
+      }
+
+      // Fallback to Seaport when PaymentProcessor v2 is blocked
+      if (params.orderKind === "payment-processor-v2") {
+        const paymentProcessorV2IsBlocked = await checkMarketplaceIsFiltered(collection, [
+          Sdk.PaymentProcessorV2.Addresses.Exchange[config.chainId],
+        ]);
+        if (paymentProcessorV2IsBlocked) {
+          if (!seaportV15IsBlocked) {
+            params.orderKind = "seaport-v1.5";
+          } else if (!seaportV16IsBlocked) {
+            params.orderKind = "seaport-v1.6";
+          } else {
+            await redis.set(cacheKey, errorMsg, "EX", cacheDuration);
+            throw new Error(errorMsg);
+          }
+        }
+      }
+
+      await redis.set(cacheKey, params.orderKind, "EX", cacheDuration);
     }
   }
 };

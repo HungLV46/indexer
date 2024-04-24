@@ -136,7 +136,7 @@ export const getTrendingCollectionsV1Options: RouteOptions = {
     failAction: (_request, _h, error) => {
       logger.error(
         `get-trending-collections-${version}-handler`,
-        `Wrong response schema: ${error}`
+        `Wrong response schema: ${JSON.stringify(error)}`
       );
       throw error;
     },
@@ -167,7 +167,10 @@ export const getTrendingCollectionsV1Options: RouteOptions = {
       const response = h.response({ collections });
       return response;
     } catch (error) {
-      logger.error(`get-trending-collections-${version}-handler`, `Handler failure: ${error}`);
+      logger.error(
+        `get-trending-collections-${version}-handler`,
+        `Handler failure: ${JSON.stringify(error)}`
+      );
       throw error;
     }
   },
@@ -419,17 +422,18 @@ async function formatCollections(
         floorAsk = {
           id: floorAskId,
           sourceDomain: sources.get(floorAskSource)?.domain,
-          price: floorAskId
-            ? await getJoiPriceObject(
-                {
-                  gross: {
-                    amount: floorAskCurrencyValue ?? floorAskValue,
-                    nativeAmount: floorAskValue || 0,
+          price:
+            floorAskId && floorAskValue
+              ? await getJoiPriceObject(
+                  {
+                    gross: {
+                      amount: floorAskCurrencyValue ?? floorAskValue,
+                      nativeAmount: floorAskValue || 0,
+                    },
                   },
-                },
-                floorAskCurrency
-              )
-            : null,
+                  floorAskCurrency
+                )
+              : null,
         };
       }
 
@@ -483,7 +487,7 @@ async function formatCollections(
             ? sources.get(metadata.top_buy_source_id_int)?.domain
             : null,
           price:
-            metadata.top_buy_id && metadata.top_buy_value
+            metadata.top_buy_id && metadata.top_buy_price
               ? await getJoiPriceObject(
                   {
                     net: {

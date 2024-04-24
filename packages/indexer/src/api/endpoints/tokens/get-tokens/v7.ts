@@ -36,7 +36,7 @@ import { Collections } from "@/models/collections";
 import { hasExtendCollectionHandler } from "@/metadata/extend";
 import { getListedTokensFromES } from "@/api/endpoints/tokens/get-tokens/v6";
 import { parseMetadata } from "@/api/endpoints/tokens/get-user-tokens/v8";
-import ResyncAttributeCacheJob from "@/jobs/update-attribute/resync-attribute-cache-job";
+import ResyncTokenAttributesCacheJob from "@/jobs/update-attribute/resync-token-attributes-cache-job";
 
 const version = "v7";
 
@@ -599,6 +599,9 @@ export const getTokensV7Options: RouteOptions = {
       }
     }
 
+    let collectionFloorAskQuery = "";
+    let selectCollectionFloorAsk = "";
+
     let sourceCte = "";
     if (query.nativeSource || query.excludeEOA) {
       const sourceConditions: string[] = [];
@@ -717,6 +720,20 @@ export const getTokensV7Options: RouteOptions = {
             query.normalizeRoyalties ? "o.normalized_value" : "o.value"
           }
         )`;
+    } else {
+      collectionFloorAskQuery =
+        ", o.currency AS c_floor_sell_currency, o.currency_value AS c_floor_sell_currency_value";
+      selectCollectionFloorAsk = `
+          LEFT JOIN LATERAL (
+            SELECT
+              orders.currency,
+              orders.currency_value
+            FROM orders
+            WHERE orders.id = c.${
+              query.normalizeRoyalties ? "normalized_floor_sell_id" : "floor_sell_id"
+            }
+          ) o ON TRUE
+      `;
     }
 
     let collectionFloorAskSelectQuery;
@@ -794,6 +811,7 @@ export const getTokensV7Options: RouteOptions = {
           ${selectIncludeDynamicPricing}
           ${selectRoyaltyBreakdown}
           ${mintStagesSelectQuery}
+          ${collectionFloorAskQuery}
         FROM tokens t
         ${
           sourceCte !== ""
@@ -810,6 +828,7 @@ export const getTokensV7Options: RouteOptions = {
           query.excludeSpam ? `AND (c.is_spam IS NULL OR c.is_spam <= 0)` : ""
         }${query.excludeNsfw ? ` AND (c.nsfw_status IS NULL OR c.nsfw_status <= 0)` : ""}
         JOIN contracts con ON t.contract = con.address
+        ${selectCollectionFloorAsk}
       `;
 
       if (query.tokenSetId) {
@@ -1643,7 +1662,8 @@ export const getTokensV7Options: RouteOptions = {
                         tokenCount: attribute.tokenCount,
                         onSaleCount: attribute.onSaleCount,
                         floorAskPrice:
-                          attribute.tokenCount <= ResyncAttributeCacheJob.maxTokensPerAttribute &&
+                          attribute.tokenCount <=
+                            ResyncTokenAttributesCacheJob.maxTokensPerAttribute &&
                           attribute.floorAskValue
                             ? await getJoiPriceObject(
                                 {

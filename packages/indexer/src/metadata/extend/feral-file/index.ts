@@ -2,6 +2,9 @@
 
 import { CollectionMetadata, TokenMetadata } from "@/metadata/types";
 
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 const collectionsTokenIdRange = [
   [
     "Winslow Homer's Croquet Challenge by Mitchell F. Chan",

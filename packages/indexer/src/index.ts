@@ -51,7 +51,10 @@ runDBMigration().then(() => {
         }
       })
       .catch((error) => {
-        logger.error("rabbit-publisher-connect", `Error connecting to rabbit ${error}`);
+        logger.error(
+          "rabbit-publisher-connect",
+          `Error connecting to rabbit ${JSON.stringify(error)}`
+        );
       });
   }
 });

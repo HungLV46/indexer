@@ -1,7 +1,7 @@
 import { AbstractRabbitMqJobHandler } from "@/jobs/abstract-rabbit-mq-job-handler";
-import { allChainsSyncRedis } from "@/common/redis";
 import { AllChainsChannel } from "@/pubsub/channels";
 import { redb } from "@/common/db";
+import { AllChainsPubSub } from "@/pubsub/index";
 
 export type SyncApiKeysJobPayload = {
   apiKey: string;
@@ -20,7 +20,7 @@ export class SyncApiKeysJob extends AbstractRabbitMqJobHandler {
     });
 
     if (apiKeyValues) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.ApiKeyCreated,
         JSON.stringify({ values: apiKeyValues })
       );

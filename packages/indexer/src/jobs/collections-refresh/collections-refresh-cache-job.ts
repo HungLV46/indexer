@@ -2,7 +2,7 @@ import { redb } from "@/common/db";
 import { fromBuffer } from "@/common/utils";
 import { AbstractRabbitMqJobHandler } from "@/jobs/abstract-rabbit-mq-job-handler";
 import { Collections } from "@/models/collections";
-import { resyncAttributeCacheJob } from "@/jobs/update-attribute/resync-attribute-cache-job";
+import { resyncTokenAttributesCacheJob } from "@/jobs/update-attribute/resync-token-attributes-cache-job";
 import _ from "lodash";
 
 export type CollectionRefreshCacheJobPayload = {
@@ -37,7 +37,7 @@ export default class CollectionRefreshCacheJob extends AbstractRabbitMqJobHandle
     if (!_.isEmpty(result)) {
       await Collections.recalculateContractFloorSell(fromBuffer(result[0].contract));
       for (const { contract, token_id } of result) {
-        await resyncAttributeCacheJob.addToQueue(
+        await resyncTokenAttributesCacheJob.addToQueue(
           { contract: fromBuffer(contract), tokenId: token_id },
           0
         );

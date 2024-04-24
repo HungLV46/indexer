@@ -52,6 +52,10 @@ export type AbiParam =
   | {
       kind: "tuple";
       params: AbiParam[];
+    }
+  | {
+      kind: "price";
+      abiType: string;
     };
 
 export type MintTxSchema = {
@@ -145,6 +149,44 @@ export const generateCollectionMintTxData = async (
   if (collectionMint.standard === "manifold" && tx.data.signature === "0x26c858a4") {
     tx.data.signature = "0x07591acc";
   }
+
+  // Compute the price before encoding
+  let price = collectionMint.price;
+
+  // For DA mints, compute the price just-in-time
+  if (
+    collectionMint.standard === "artblocks" &&
+    (collectionMint.details.info as mints.artblocks.Info).daConfig
+  ) {
+    price = await mints.artblocks.getPrice(
+      (collectionMint.details.info as mints.artblocks.Info).daConfig!
+    );
+  }
+  if (
+    collectionMint.standard === "highlightxyz" &&
+    (collectionMint.details.info as mints.highlightxyz.Info).pricePeriodDuration
+  ) {
+    price = await mints.highlightxyz.getPrice(collectionMint);
+  }
+
+  // If the price is not available on the main `CollectionMint`
+
+  // First, try get it from the allowlist
+  if (!price && allowlistData) {
+    price = allowlistData.actual_price ?? 0;
+  }
+
+  // Then, try to get it from the `pricePerQuantity` data
+  if (!price && collectionMint.pricePerQuantity) {
+    const matchingEntry = collectionMint.pricePerQuantity.find((e) => e.quantity === quantity);
+    if (!matchingEntry) {
+      throw new Error("Requested quantity is not mintable");
+    }
+
+    price = matchingEntry.price;
+  }
+
+  const priceForQuantity = bn(price!).mul(quantity);
 
   let hasExplicitRecipient = false;
   const encodeParams = async (params: AbiParam[]) => {
@@ -343,6 +385,15 @@ export const generateCollectionMintTxData = async (
           break;
         }
 
+        case "price": {
+          abiData.push({
+            abiType: p.abiType,
+            abiValue: priceForQuantity,
+          });
+
+          break;
+        }
+
         default: {
           abiData.push({
             abiType: p.abiType,
@@ -373,47 +424,15 @@ export const generateCollectionMintTxData = async (
           .slice(2)
       : "");
 
-  let price = collectionMint.price;
-
-  // For DA mints, compute the price just-in-time
-  if (
-    collectionMint.standard === "artblocks" &&
-    (collectionMint.details.info as mints.artblocks.Info).daConfig
-  ) {
-    price = await mints.artblocks.getPrice(
-      (collectionMint.details.info as mints.artblocks.Info).daConfig!
-    );
-  }
-  if (
-    collectionMint.standard === "highlightxyz" &&
-    (collectionMint.details.info as mints.highlightxyz.Info).pricePeriodDuration
-  ) {
-    price = await mints.highlightxyz.getPrice(collectionMint);
-  }
-
-  // If the price is not available on the main `CollectionMint`
-
-  // First, try get it from the allowlist
-  if (!price && allowlistData) {
-    price = allowlistData.actual_price ?? 0;
-  }
-
-  // Then, try to get it from the `pricePerQuantity` data
-  if (!price && collectionMint.pricePerQuantity) {
-    const matchingEntry = collectionMint.pricePerQuantity.find((e) => e.quantity === quantity);
-    if (!matchingEntry) {
-      throw new Error("Requested quantity is not mintable");
-    }
-
-    price = matchingEntry.price;
-  }
-
   return {
     txData: {
       from: minter,
       to: tx.to,
       data,
-      value: bn(price!).mul(quantity).toHexString(),
+      value:
+        collectionMint.currency !== Sdk.Common.Addresses.Native[config.chainId]
+          ? undefined
+          : priceForQuantity.toHexString(),
     },
     price: price!,
     hasExplicitRecipient,
@@ -504,6 +523,10 @@ export const refreshMintsForCollection = async (collection: string) => {
 
       case "mirror":
         await mints.mirror.refreshByCollection(collection);
+        break;
+
+      case "nfts2me":
+        await mints.nfts2me.refreshByCollection(collection);
         break;
     }
   }

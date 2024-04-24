@@ -8,6 +8,11 @@ import {
 } from "../../orderbook/mints/calldata/detector/zora";
 import { jest, describe, it, expect } from "@jest/globals";
 import * as utils from "@/events-sync/utils";
+import { generateCollectionMintTxData } from "@/orderbook/mints/calldata";
+import * as Sdk from "@reservoir0x/sdk";
+import { config } from "@/config/index";
+import { baseProvider } from "@/common/provider";
+import { MintDetails } from "@reservoir0x/sdk/dist/router/v6/types";
 
 jest.setTimeout(1000 * 1000);
 
@@ -41,5 +46,49 @@ describe("Mints - Zora", () => {
     // console.log("infos", infos)
     expect(infos.length).not.toBe(0);
     expect(infos[0]?.details.tx.data.signature).toBe("0x9dbb844d");
+  });
+
+  it("multicall", async () => {
+    const collection = `0x48f4724fabf58f710c1f97632a93399e441d8ceb`;
+    const transcation = await utils.fetchTransaction(
+      "0xad0b13a1acac2d99ffaa9d79ea3f8df21e72dc86c03926a1c7a381ec444a72b0"
+    );
+    const infos = await extractByTx(collection, transcation);
+    // console.log("infos", infos)
+    expect(infos.length).not.toBe(0);
+    expect(infos[0]?.details.tx.data.signature).toBe("0x9dbb844d");
+  });
+
+  it("erc20-minter", async () => {
+    const collection = `0x953a677ace4d7cd92d39f489ed7ae29f0e7c12e1`;
+    const minter = "0xd5c0d17ccb9071d27a4f7ed8255f59989b9aee0d";
+    const transcation = await utils.fetchTransaction(
+      "0xe2c59c6def4939d62b0336dc80ee6bfe8c3c5392b4f0110cb7e5bf1e270f84db"
+    );
+    const collectionMints = await extractByTx(collection, transcation);
+    // console.log("infos", collectionMints);
+    const router = new Sdk.RouterV6.Router(config.chainId, baseProvider);
+    expect(collectionMints.length).not.toBe(0);
+    const mintDetails: MintDetails[] = [];
+    for (const collectionMint of collectionMints) {
+      const { txData } = await generateCollectionMintTxData(collectionMint, minter, 1);
+      mintDetails.push({
+        orderId: String(Math.random()),
+        txData,
+        fees: [],
+        token: collectionMint.contract,
+        quantity: 1,
+        comment: "",
+        currency: collectionMint.currency,
+        price: collectionMint.price,
+      });
+      expect(txData.value).toBe(undefined);
+    }
+    const mintsResult = await router.fillMintsTx(mintDetails, minter);
+    for (const { approvals } of mintsResult.txs) {
+      // ERC20 mint requires approvals
+      expect(approvals.length).not.toBe(0);
+    }
+    expect(collectionMints[0]?.details.tx.data.signature).toBe("0xf54f216a");
   });
 });

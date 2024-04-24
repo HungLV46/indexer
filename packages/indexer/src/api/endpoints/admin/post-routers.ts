@@ -5,12 +5,12 @@ import Joi from "joi";
 import { idb } from "@/common/db";
 import { logger } from "@/common/logger";
 import { baseProvider } from "@/common/provider";
-import { redis } from "@/common/redis";
 import { regex, toBuffer } from "@/common/utils";
 import { config } from "@/config/index";
 import { addToQueue } from "@/jobs/backfill/backfill-router";
 import { Sources } from "@/models/sources";
 import { Channel } from "@/pubsub/channels";
+import { PubSub } from "@/pubsub/index";
 
 export const postRoutersOptions: RouteOptions = {
   description: "Add a new router contract",
@@ -64,7 +64,7 @@ export const postRoutersOptions: RouteOptions = {
           }
         );
 
-        await redis.publish(Channel.RoutersUpdated, `New router ${address} (${domain})`);
+        await PubSub.publish(Channel.RoutersUpdated, `New router ${address} (${domain})`);
 
         await addToQueue({
           router: address,

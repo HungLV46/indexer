@@ -69,6 +69,27 @@ export type OrderUpdatesByMakerJobPayload = {
       };
 };
 
+// Revalidation of some cosigned orders will be skipped
+const isCosignedOrder = (seaportZone?: string, ppCosigner?: string) => {
+  // Payment processor
+  if (ppCosigner && ppCosigner !== AddressZero) {
+    return true;
+  }
+
+  // Seaport
+  if (
+    seaportZone &&
+    [
+      Sdk.SeaportBase.Addresses.ReservoirCancellationZone[config.chainId],
+      Sdk.SeaportBase.Addresses.ReservoirV16CancellationZone[config.chainId],
+    ].includes(seaportZone)
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
   queueName = "order-updates-by-maker";
   maxRetries = 10;
@@ -162,7 +183,9 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
             // Some orders should never get revalidated
             .map((data) =>
               data.new_status === "no-balance" &&
-              ["opensea.io", "x2y2.io"].includes(sources.get(data.source_id_int)?.domain ?? "")
+              ["mintify.xyz", "opensea.io", "x2y2.io"].includes(
+                sources.get(data.source_id_int)?.domain ?? ""
+              )
                 ? { ...data, new_status: "cancelled" }
                 : data
             )
@@ -299,7 +322,7 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
                   // Some orders should never get revalidated
                   ({ source_id_int, approval_status }) =>
                     approval_status === "no-approval" &&
-                    ["x2y2.io"].includes(sources.get(source_id_int)?.domain ?? "")
+                    ["x2y2.io", "mintify.xyz"].includes(sources.get(source_id_int)?.domain ?? "")
                 )
                 .map(({ id, expiration }) => ({
                   id,
@@ -392,6 +415,8 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
                 orders.id,
                 orders.source_id_int,
                 orders.fillability_status AS old_status,
+                orders.raw_data->>'zone' as seaport_zone,
+                orders.raw_data->>'cosigner' as pp_cosigner,
                 orders.kind,
                 (CASE
                   WHEN nft_balances.amount >= orders.quantity_remaining THEN 'fillable'
@@ -436,9 +461,10 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
             // Some orders should never get revalidated
             .map((data) =>
               data.new_status === "no-balance" &&
-              ["blur.io", "x2y2.io", "opensea.io"].includes(
+              (["blur.io", "x2y2.io", "opensea.io"].includes(
                 sources.get(data.source_id_int)?.domain ?? ""
-              )
+              ) ||
+                isCosignedOrder(data.seaport_zone, data.pp_cosigner))
                 ? { ...data, new_status: "cancelled" }
                 : data
             )
@@ -490,6 +516,8 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
                 orders.kind,
                 orders.source_id_int,
                 orders.approval_status AS old_status,
+                orders.raw_data->>'zone' as seaport_zone,
+                orders.raw_data->>'cosigner' as pp_cosigner,
                 x.new_status,
                 x.expiration
               FROM orders
@@ -560,9 +588,10 @@ export default class OrderUpdatesByMakerJob extends AbstractRabbitMqJobHandler {
           const cancelledValues = approvalStatuses
             .filter(
               // Some orders should never get revalidated
-              ({ source_id_int, new_status }) =>
+              ({ source_id_int, seaport_zone, pp_cosigner, new_status }) =>
                 new_status === "no-approval" &&
-                ["blur.io", "x2y2.io"].includes(sources.get(source_id_int)?.domain ?? "")
+                (["blur.io", "x2y2.io"].includes(sources.get(source_id_int)?.domain ?? "") ||
+                  isCosignedOrder(seaport_zone, pp_cosigner))
             )
             .map(({ id, expiration }) => ({
               id,

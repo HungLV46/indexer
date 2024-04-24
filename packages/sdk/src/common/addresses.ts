@@ -34,6 +34,10 @@ export const Native: ChainIdToAddress = {
   [Network.AstarZkevm]: AddressZero,
   [Network.ApexTestnet]: AddressZero,
   [Network.EvmosTestnet]: AddressZero,
+  [Network.BerachainTestnet]: AddressZero,
+  [Network.Garnet]: AddressZero,
+  [Network.Redstone]: AddressZero,
+  [Network.Amoy]: AddressZero,
 };
 
 // Wrapped native currency
@@ -66,8 +70,12 @@ export const WNative: ChainIdToAddress = {
   [Network.Apex]: "0x77684a04145a5924efce0d92a7c4a2a2e8c359de",
   [Network.Blast]: "0x4300000000000000000000000000000000000004",
   [Network.AstarZkevm]: "0xe9cc37904875b459fa5d0fe37680d36f1ed55e38",
-  [Network.ApexTestnet]: "0xf470ba53f14B1073cC16839c0f80474105d159a5",
+  [Network.ApexTestnet]: "0xbfb86801053600dd3c7fcba6d5e85017a64ce728",
   [Network.EvmosTestnet]: "0xE9cF9154212D862264E794b72B8aB4568Bb50813",
+  [Network.BerachainTestnet]: "0x5806e416da447b267cea759358cf22cc41fae80f",
+  [Network.Garnet]: "0x4200000000000000000000000000000000000006",
+  [Network.Redstone]: "0x4200000000000000000000000000000000000006",
+  [Network.Amoy]: "0x0ae690aad8663aab12a671a6a0d74242332de85f",
 };
 
 export const Usdc: ChainIdToAddressList = {
@@ -110,6 +118,9 @@ export const Usdc: ChainIdToAddressList = {
   [Network.Base]: [
     "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca", // Bridged
     "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", // Native
+  ],
+  [Network.BaseSepolia]: [
+    "0x036cbd53842c5426634e7929541ec2318f3dcf7e", // Native
   ],
   [Network.AstarZkevm]: [
     "0xa8ce8aee21bc2a48a5ef670afcc9274c7bbbc035", // Bridged
@@ -183,6 +194,10 @@ export const Create3Factory: ChainIdToAddress = {
   [Network.Blast]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
   [Network.AstarZkevm]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
   [Network.ApexTestnet]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
+  [Network.BerachainTestnet]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
+  [Network.Garnet]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
+  [Network.Redstone]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
+  [Network.Amoy]: "0x0000000000000a9efe52e741bcb25da0e4438e71",
 };
 
 export const GelatoRelay1BalanceERC2771: ChainIdToAddress = {

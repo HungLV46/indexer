@@ -29,7 +29,7 @@ export const extend = async (metadata: TokenMetadata) => {
       attributes,
     };
   } catch (error) {
-    logger.error(
+    logger.warn(
       "kanpai-pandas-fetcher",
       JSON.stringify({
         message: `fetchToken get json error. error:${error}`,

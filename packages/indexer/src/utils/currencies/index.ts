@@ -42,7 +42,7 @@ export const getCurrency = async (currencyAddress: string): Promise<Currency> =>
       }
     );
 
-    if (result && result.name && result.symbol && result.decimals) {
+    if (result && result.name && result.symbol && result.decimals !== undefined) {
       CURRENCY_MEMORY_CACHE.set(currencyAddress, {
         contract: currencyAddress,
         name: result.name,

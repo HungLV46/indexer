@@ -1157,6 +1157,18 @@ export const setupRoutes = (server: Server) => {
   });
 
   server.route({
+    method: "GET",
+    path: "/collections/{collectionId}/bids/v1",
+    options: ordersEndpoints.getCollectionBidsV1Options,
+  });
+
+  server.route({
+    method: "GET",
+    path: "/users/{user}/bids/v1",
+    options: ordersEndpoints.getUserBidsV1Options,
+  });
+
+  server.route({
     method: "POST",
     path: "/order/v2",
     options: ordersEndpoints.postOrderV2Options,
@@ -1484,6 +1496,12 @@ export const setupRoutes = (server: Server) => {
     method: "POST",
     path: "/tokens/refresh/v1",
     options: tokensEndpoints.postTokensRefreshV1Options,
+  });
+
+  server.route({
+    method: "POST",
+    path: "/tokens/refresh/v2",
+    options: tokensEndpoints.postTokensRefreshV2Options,
   });
 
   server.route({

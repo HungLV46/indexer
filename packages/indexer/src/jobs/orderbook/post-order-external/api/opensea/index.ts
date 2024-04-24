@@ -19,7 +19,7 @@ import { orderbookOrdersJob } from "@/jobs/orderbook/orderbook-orders-job";
 export const RATE_LIMIT_REQUEST_COUNT = 2;
 export const RATE_LIMIT_INTERVAL = 1;
 
-export const postOrder = async (order: Sdk.SeaportV15.Order, apiKey: string) => {
+export const postOrder = async (order: Sdk.SeaportV16.Order, apiKey: string) => {
   // Skip posting orders that already expired
   if (order.params.endTime <= now()) {
     throw new InvalidRequestError("Order is expired");
@@ -60,7 +60,7 @@ export const postOrder = async (order: Sdk.SeaportV15.Order, apiKey: string) => 
         totalOriginalConsiderationItems: order.params.consideration.length,
       },
       signature: order.params.signature!,
-      protocol_address: Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      protocol_address: Sdk.SeaportV16.Addresses.Exchange[config.chainId],
     },
   };
 
@@ -84,7 +84,7 @@ export const postOrder = async (order: Sdk.SeaportV15.Order, apiKey: string) => 
   // If the cross-posting was successful, save the order directly
   await orderbookOrdersJob.addToQueue([
     {
-      kind: "seaport-v1.5",
+      kind: "seaport-v1.6",
       info: {
         orderParams: order.params,
         metadata: {},
@@ -127,7 +127,7 @@ export const buildCollectionOffer = async (
           slug: collectionSlug,
         },
       },
-      protocol_address: Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      protocol_address: Sdk.SeaportV16.Addresses.Exchange[config.chainId],
     },
   };
 
@@ -194,7 +194,7 @@ export const buildTraitOffer = async (
           value: traitValue,
         },
       },
-      protocol_address: Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      protocol_address: Sdk.SeaportV16.Addresses.Exchange[config.chainId],
     },
   };
 
@@ -223,7 +223,7 @@ export const buildTraitOffer = async (
 };
 
 export const postCollectionOffer = async (
-  order: Sdk.SeaportV15.Order,
+  order: Sdk.SeaportV16.Order,
   collectionSlug: string,
   apiKey: string
 ) => {
@@ -264,7 +264,7 @@ export const postCollectionOffer = async (
         },
         signature: order.params.signature!,
       },
-      protocol_address: Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      protocol_address: Sdk.SeaportV16.Addresses.Exchange[config.chainId],
     },
   };
 
@@ -287,7 +287,7 @@ export const postCollectionOffer = async (
 };
 
 export const postTraitOffer = async (
-  order: Sdk.SeaportV15.Order,
+  order: Sdk.SeaportV16.Order,
   collectionSlug: string,
   attribute: { key: string; value: string },
   apiKey: string
@@ -333,7 +333,7 @@ export const postTraitOffer = async (
         },
         signature: order.params.signature!,
       },
-      protocol_address: Sdk.SeaportV15.Addresses.Exchange[config.chainId],
+      protocol_address: Sdk.SeaportV16.Addresses.Exchange[config.chainId],
     },
   };
 

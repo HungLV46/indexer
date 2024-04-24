@@ -1,7 +1,6 @@
 import _ from "lodash";
 import cron from "node-cron";
 
-import { logger } from "@/common/logger";
 import { redis, redlock } from "@/common/redis";
 import { now } from "@/common/utils";
 import { config } from "@/config/index";
@@ -21,8 +20,6 @@ export default class OrderUpdatesExpiredOrderJob extends AbstractRabbitMqJobHand
   intervalInSeconds = 5;
 
   public async process() {
-    logger.info(this.queueName, "Invalidating expired orders");
-
     const currentTime = now();
     const lastTimestampKey = "expired-orders-last-timestamp";
     const lastTimestamp = await redis
@@ -57,7 +54,6 @@ if (config.doBackgroundWork) {
           (orderUpdatesExpiredOrderJob.intervalInSeconds - 3) * 1000
         )
         .then(async () => {
-          logger.info(orderUpdatesExpiredOrderJob.queueName, "Triggering expired orders check");
           await orderUpdatesExpiredOrderJob.addToQueue();
         })
         .catch(() => {

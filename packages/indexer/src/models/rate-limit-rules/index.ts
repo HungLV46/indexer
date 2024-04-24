@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import _ from "lodash";
 
-import { allChainsSyncRedis, rateLimitRedis, redis } from "@/common/redis";
+import { rateLimitRedis, redis } from "@/common/redis";
 import { idb, redb } from "@/common/db";
 import {
   RateLimitRuleEntity,
@@ -16,6 +16,7 @@ import { ApiKeyManager } from "@/models/api-keys";
 import { RateLimiterRedis } from "rate-limiter-flexible";
 import { BlockedKeyError, BlockedRouteError } from "@/models/rate-limit-rules/errors";
 import { config } from "@/config/index";
+import { AllChainsPubSub, PubSub } from "@/pubsub/index";
 
 export class RateLimitRules {
   private static instance: RateLimitRules;
@@ -141,14 +142,14 @@ export class RateLimitRules {
     const rateLimitRuleEntity = new RateLimitRuleEntity(rateLimitRule);
 
     await RateLimitRules.forceDataReload(); // reload the cache
-    await redis.publish(
+    await PubSub.publish(
       Channel.RateLimitRuleUpdated,
       `New rate limit rule ${JSON.stringify(rateLimitRuleEntity)}`
     );
 
     // Sync to other chains only if created on mainnet
     if (config.chainId === 1) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.RateLimitRuleCreated,
         JSON.stringify({ rule: rateLimitRuleEntity })
       );
@@ -209,13 +210,13 @@ export class RateLimitRules {
                    WHERE id = $/id/`;
 
     await idb.none(query, replacementValues);
-    await redis.publish(Channel.RateLimitRuleUpdated, `Updated rule id ${id}`);
+    await PubSub.publish(Channel.RateLimitRuleUpdated, `Updated rule id ${id}`);
 
     // Sync to other chains only if updated on mainnet
     if (config.chainId === 1) {
       const rateLimitRuleEntity = await RateLimitRules.getRuleById(id);
 
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.RateLimitRuleUpdated,
         JSON.stringify({ rule: rateLimitRuleEntity })
       );
@@ -272,11 +273,11 @@ export class RateLimitRules {
 
     const deletedRule = await idb.oneOrNone(query, values);
     await RateLimitRules.forceDataReload(); // reload the cache
-    await redis.publish(Channel.RateLimitRuleUpdated, `Deleted rule id ${id}`);
+    await PubSub.publish(Channel.RateLimitRuleUpdated, `Deleted rule id ${id}`);
 
     // Sync to other chains only if deleted on mainnet
     if (config.chainId === 1) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.RateLimitRuleDeleted,
         JSON.stringify({ correlationId: deletedRule.correlation_id })
       );

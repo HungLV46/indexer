@@ -1,4 +1,5 @@
 import { redisWebsocketPublisher } from "./redis";
+import { getNetworkName } from "@/config/network";
 
 export interface WebsocketMessage {
   published_at?: number;
@@ -14,5 +15,5 @@ export interface WebsocketMessage {
 
 export const publishWebsocketEvent = async (message: WebsocketMessage): Promise<void> => {
   message.published_at = Date.now();
-  await redisWebsocketPublisher.publish("events", JSON.stringify(message));
+  await redisWebsocketPublisher.publish(`${getNetworkName()}-ws-events`, JSON.stringify(message));
 };

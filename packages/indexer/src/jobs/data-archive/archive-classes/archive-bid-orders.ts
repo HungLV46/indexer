@@ -8,8 +8,9 @@ import { fromBuffer } from "@/common/utils";
 import { logger } from "@/common/logger";
 
 import { ArchiveInterface } from "@/jobs/data-archive/archive-classes/archive-interface";
-// import { PendingExpiredBidActivitiesQueue } from "@/elasticsearch/indexes/activities/pending-expired-bid-activities-queue";
+import { PendingExpiredBidActivitiesQueue } from "@/elasticsearch/indexes/activities/pending-expired-bid-activities-queue";
 import { deleteArchivedExpiredBidActivitiesJob } from "@/jobs/elasticsearch/activities/delete-archived-expired-bid-activities-job";
+import { config } from "@/config/index";
 
 export class ArchiveBidOrders implements ArchiveInterface {
   static tableName = "orders";
@@ -121,9 +122,9 @@ export class ArchiveBidOrders implements ArchiveInterface {
   }
 
   async deleteFromTable(startTime: string, endTime: string) {
-    const limit = 5000;
+    const limit = 1000;
     let deletedOrdersResult;
-    const deleteActivities = false;
+    let deleteActivities = false;
 
     do {
       const deleteQuery = `
@@ -143,24 +144,24 @@ export class ArchiveBidOrders implements ArchiveInterface {
 
       logger.info(
         "archive-bid-orders",
-        `Bids deleted. ${startTime} - ${endTime} deletedOrdersCount=${JSON.stringify(
-          deletedOrdersResult?.length
-        )}`
+        `Bids deleted. ${startTime} - ${endTime}. deleteExpiredBidsElasticsearch=${
+          config.deleteExpiredBidsElasticsearch
+        }, deletedOrdersCount=${JSON.stringify(deletedOrdersResult?.length)}`
       );
 
-      // if (deletedOrdersResult.length) {
-      //   const pendingExpiredBidActivitiesQueue = new PendingExpiredBidActivitiesQueue();
-      //
-      //   await pendingExpiredBidActivitiesQueue.add(
-      //     deletedOrdersResult.map((deletedOrder) => deletedOrder.id)
-      //   );
-      //
-      //   deleteActivities = true;
-      // }
+      if (deletedOrdersResult.length && config.deleteExpiredBidsElasticsearch) {
+        const pendingExpiredBidActivitiesQueue = new PendingExpiredBidActivitiesQueue();
+
+        await pendingExpiredBidActivitiesQueue.add(
+          deletedOrdersResult.map((deletedOrder) => deletedOrder.id)
+        );
+
+        deleteActivities = true;
+      }
     } while (deletedOrdersResult.length === limit);
 
     if (deleteActivities) {
-      await deleteArchivedExpiredBidActivitiesJob.addToQueue();
+      await deleteArchivedExpiredBidActivitiesJob.addToQueue(0);
     }
   }
 }

@@ -3,7 +3,11 @@ import * as Sdk from "@reservoir0x/sdk";
 import { redb } from "@/common/db";
 import { toBuffer } from "@/common/utils";
 import { config } from "@/config/index";
-import { BaseOrderBuildOptions, OrderBuildInfo } from "@/orderbook/orders/seaport-base/build/utils";
+import {
+  BaseOrderBuildOptions,
+  OrderBuildInfo,
+  contractUsesOSTransferValidator,
+} from "@/orderbook/orders/seaport-base/build/utils";
 
 export interface BuildOrderOptions extends BaseOrderBuildOptions {
   tokenId: string;
@@ -50,6 +54,15 @@ export class SellTokenBuilderBase {
     const buildInfo = await this.getBuildInfoFunc(options, collectionResult.collection_id, "sell");
 
     const builder = new Sdk.SeaportBase.Builders.SingleToken(config.chainId);
+
+    if (options.orderbook === "opensea") {
+      if (await contractUsesOSTransferValidator(options.contract!)) {
+        // Adjust some parameters for royalty-enforcing orders
+        buildInfo.params.zone = Sdk.SeaportBase.Addresses.OpenSeaV16SignedZone[config.chainId];
+        buildInfo.params.orderType = Sdk.SeaportBase.Types.OrderType.PARTIAL_RESTRICTED;
+      }
+    }
+
     return builder.build({ ...buildInfo.params, tokenId: options.tokenId }, orderBuilder);
   }
 }

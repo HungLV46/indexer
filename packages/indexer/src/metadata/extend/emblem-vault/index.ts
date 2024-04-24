@@ -4,6 +4,9 @@ import { logger } from "@/common/logger";
 import { config } from "@/config/index";
 import axios from "axios";
 
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 export const extendCollection = async (metadata: any, _tokenId = null) => {
   metadata.community = null;
   metadata.tokenIdRange = null;

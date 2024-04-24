@@ -1,12 +1,16 @@
 import { BigNumber } from "@ethersproject/bignumber";
+import * as Sdk from "@reservoir0x/sdk";
 
 import { idb } from "@/common/db";
 import { logger } from "@/common/logger";
 import { bn, fromBuffer, now, toBuffer } from "@/common/utils";
+import { config } from "@/config/index";
 import { mintsRefreshJob } from "@/jobs/mints/mints-refresh-job";
 import { MintTxSchema, CustomInfo } from "@/orderbook/mints/calldata";
 import { getAmountMinted, getCurrentSupply } from "@/orderbook/mints/calldata/helpers";
 import { simulateCollectionMint } from "@/orderbook/mints/simulation";
+import { getUSDAndNativePrices } from "@/utils/prices";
+import { getCurrency } from "@/utils/currencies";
 
 export type CollectionMintKind = "public" | "allowlist";
 export type CollectionMintStatus = "open" | "closed";
@@ -30,7 +34,8 @@ export type CollectionMintStandard =
   | "fairxyz"
   | "fabric"
   | "paragraph"
-  | "mirror";
+  | "mirror"
+  | "nfts2me";
 
 export type CollectionMintDetails = {
   tx: MintTxSchema;
@@ -430,6 +435,24 @@ export const upsertCollectionMint = async (collectionMint: CollectionMint) => {
 };
 
 export const simulateAndUpsertCollectionMint = async (collectionMint: CollectionMint) => {
+  // Make sure the collection mint has a known currency
+  if (collectionMint.currency !== Sdk.Common.Addresses.Native[config.chainId]) {
+    try {
+      // Before saving, we make sure the native and usd prices are available
+      const currency = await getCurrency(collectionMint.currency);
+      await getUSDAndNativePrices(
+        collectionMint.currency,
+        bn(10)
+          .pow(currency.decimals ?? 18)
+          .toString(),
+        now(),
+        { acceptStalePrice: true }
+      );
+    } catch {
+      return false;
+    }
+  }
+
   const simulationResult = await simulateCollectionMint(collectionMint);
   collectionMint.status = simulationResult ? "open" : "closed";
 

@@ -5,6 +5,7 @@ import { searchForCalls } from "@georgeroman/evm-tx-simulator";
 import * as Sdk from "@reservoir0x/sdk";
 
 import { logger } from "@/common/logger";
+import { bn } from "@/common/utils";
 import { config } from "@/config/index";
 import { getEventData } from "@/events-sync/data";
 import { EnhancedEvent, OnChainData } from "@/events-sync/handlers/utils";
@@ -68,7 +69,7 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
         onChainData.bulkCancelEvents.push({
           orderKind: "payment-processor-v2",
           maker,
-          minNonce: newNonce,
+          minNonce: bn(newNonce).add(1).toString(),
           acrossAll: true,
           baseEventParams,
         });
@@ -539,17 +540,16 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
         const tokenAddress = parsedLog.args["tokenAddress"].toLowerCase();
 
         // Refresh
-        await paymentProcessorV2Utils.getConfigByContract(tokenAddress, true);
-
-        // Update backfilled royalties
-        const royaltyBackfillReceiver = parsedLog.args["royaltyBackfillReceiver"].toLowerCase();
-        const royaltyBackfillNumerator = parsedLog.args["royaltyBackfillNumerator"];
-        await paymentProcessorV2Utils.saveBackfilledRoyalties(tokenAddress, [
-          {
-            recipient: royaltyBackfillReceiver,
-            bps: royaltyBackfillNumerator,
-          },
-        ]);
+        const config = await paymentProcessorV2Utils.getConfigByContract(tokenAddress, true);
+        if (config) {
+          // Update backfilled royalties
+          await paymentProcessorV2Utils.saveBackfilledRoyalties(tokenAddress, [
+            {
+              recipient: config.royaltyBackfillReceiver,
+              bps: config.royaltyBackfillNumerator,
+            },
+          ]);
+        }
 
         break;
       }

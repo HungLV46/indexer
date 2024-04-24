@@ -3,7 +3,7 @@ import { redb } from "@/common/db";
 import { AbstractRabbitMqJobHandler } from "@/jobs/abstract-rabbit-mq-job-handler";
 import { RabbitMQMessage } from "@/common/rabbit-mq";
 
-import { resyncAttributeCacheJob } from "@/jobs/update-attribute/resync-attribute-cache-job";
+import { resyncTokenAttributesCacheJob } from "@/jobs/update-attribute/resync-token-attributes-cache-job";
 import { fromBuffer } from "@/common/utils";
 import { logger } from "@/common/logger";
 import { acquireLock } from "@/common/redis";
@@ -48,7 +48,7 @@ export class BackfillAttributesFloorAskJob extends AbstractRabbitMqJobHandler {
       );
 
       if (lockAcquired) {
-        await resyncAttributeCacheJob.addToQueue({ contract, tokenId }, 0);
+        await resyncTokenAttributesCacheJob.addToQueue({ contract, tokenId }, 0);
       }
 
       logger.info(

@@ -1,59 +1,53 @@
 import { AbstractRabbitMqJobHandler } from "@/jobs/abstract-rabbit-mq-job-handler";
 import { Attributes } from "@/models/attributes";
 import { Tokens } from "@/models/tokens";
+import { config } from "@/config/index";
+import _ from "lodash";
 
-export type ResyncAttributeCacheJobPayload = {
-  contract: string;
-  tokenId: string;
+export type ResyncAttributeCacheJobInfo = {
+  attributeId: number;
 };
 
 export default class ResyncAttributeCacheJob extends AbstractRabbitMqJobHandler {
-  public static maxTokensPerAttribute = 15000;
-
   queueName = "resync-attribute-cache-queue";
   maxRetries = 10;
   concurrency = 3;
 
-  public async process(payload: ResyncAttributeCacheJobPayload) {
-    const { contract, tokenId } = payload;
+  public async process(payload: ResyncAttributeCacheJobInfo) {
+    const attribute = await Attributes.getById(payload.attributeId);
 
-    const tokenAttributes = await Tokens.getTokenAttributes(
-      contract,
-      tokenId,
-      ResyncAttributeCacheJob.maxTokensPerAttribute
+    const { floorSell, onSaleCount } = await Tokens.getSellFloorValueAndOnSaleCount(
+      attribute!.collectionId,
+      attribute!.key,
+      attribute!.value
     );
 
-    // Recalculate the number of tokens on sale for each attribute
-    for (const tokenAttribute of tokenAttributes) {
-      const { floorSell, onSaleCount } = await Tokens.getSellFloorValueAndOnSaleCount(
-        tokenAttribute.collectionId,
-        tokenAttribute.key,
-        tokenAttribute.value
-      );
-
-      await Attributes.update(tokenAttribute.attributeId, {
-        floorSellId: floorSell?.id,
-        floorSellValue: floorSell?.value,
-        floorSellCurrency: floorSell?.currency,
-        floorSellCurrencyValue: floorSell?.currencyValue,
-        floorSellMaker: floorSell?.maker,
-        floorSellValidFrom: floorSell?.validFrom,
-        floorSellValidTo: floorSell?.validTo,
-        floorSellSourceIdInt: floorSell?.sourceIdInt,
-        onSaleCount,
-        sellUpdatedAt: new Date().toISOString(),
-      });
-    }
+    await Attributes.update(payload.attributeId, {
+      floorSellId: floorSell?.id,
+      floorSellValue: floorSell?.value,
+      floorSellCurrency: floorSell?.currency,
+      floorSellCurrencyValue: floorSell?.currencyValue,
+      floorSellMaker: floorSell?.maker,
+      floorSellValidFrom: floorSell?.validFrom,
+      floorSellValidTo: floorSell?.validTo,
+      floorSellSourceIdInt: floorSell?.sourceIdInt,
+      onSaleCount,
+      sellUpdatedAt: new Date().toISOString(),
+    });
   }
 
   public async addToQueue(
-    params: ResyncAttributeCacheJobPayload,
-    delay = 60 * 10 * 1000,
+    infos: ResyncAttributeCacheJobInfo[],
+    delay = _.includes([1, 137], config.chainId) ? 60 * 10 * 1000 : 60 * 60 * 24 * 1000,
     forceRefresh = false
   ) {
-    const token = `${params.contract}:${params.tokenId}`;
-    const jobId = forceRefresh ? undefined : token;
-    await this.send({ payload: params, jobId }, delay);
+    await this.sendBatch(
+      infos.map((info) => ({
+        payload: info,
+        jobId: forceRefresh ? undefined : `${info.attributeId}`,
+        delay,
+      }))
+    );
   }
 }
 

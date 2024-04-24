@@ -1,14 +1,17 @@
 import { Interface } from "@ethersproject/abi";
+import { AddressZero } from "@ethersproject/constants";
 import { Contract } from "@ethersproject/contracts";
+import { keccak256 } from "@ethersproject/solidity";
+import * as Sdk from "@reservoir0x/sdk";
 
 import { idb, redb } from "@/common/db";
 import { baseProvider } from "@/common/provider";
-import { fromBuffer, toBuffer } from "@/common/utils";
+import { bn, fromBuffer, toBuffer } from "@/common/utils";
+import { config } from "@/config/index";
 import { orderRevalidationsJob } from "@/jobs/order-fixes/order-revalidations-job";
 
 enum TransferSecurityLevel {
   Recommended,
-  Zero,
   One,
   Two,
   Three,
@@ -16,6 +19,7 @@ enum TransferSecurityLevel {
   Five,
   Six,
   Seven,
+  Eight,
 }
 
 export type ERC721CV2Config = {
@@ -31,7 +35,7 @@ export type List = {
   codeHashes: string[];
 };
 
-export const getConfig = async (contract: string): Promise<ERC721CV2Config | undefined> => {
+const getConfig = async (contract: string): Promise<ERC721CV2Config | undefined> => {
   try {
     const token = new Contract(
       contract,
@@ -39,31 +43,124 @@ export const getConfig = async (contract: string): Promise<ERC721CV2Config | und
       baseProvider
     );
 
-    const transferValidatorAddress = await token.getTransferValidator();
-    const transferValidator = new Contract(
-      transferValidatorAddress,
-      new Interface([
-        `
+    const transferValidatorAddress = await token
+      .getTransferValidator()
+      .then((address: string) => address.toLowerCase());
+
+    const osCustomTransferValidator =
+      Sdk.SeaportBase.Addresses.OpenSeaCustomTransferValidator[config.chainId];
+
+    if (transferValidatorAddress === AddressZero) {
+      // The collection doesn't use any transfer validator anymore
+      await deleteConfig(contract);
+    } else if (
+      osCustomTransferValidator &&
+      transferValidatorAddress === osCustomTransferValidator
+    ) {
+      // The collection uses OpenSea's custom transfer validator
+      const slot = keccak256(["uint256", "uint256"], [contract, 2]);
+      const rawResult = await baseProvider.getStorageAt(contract, slot);
+
+      const listId = bn("0x" + rawResult.slice(-30)).toString();
+      const policyBypassed = Boolean(bn("0x" + rawResult.slice(-32, -30)).toNumber());
+      const blacklistBased = Boolean(bn("0x" + rawResult.slice(-34, -32)).toNumber());
+      const directTransfersDisabled = Boolean(bn("0x" + rawResult.slice(-36, -34)).toNumber());
+      const contractRecipientsDisabled = Boolean(bn("0x" + rawResult.slice(-38, -36)).toNumber());
+      const signatureRegistrationRequired = Boolean(
+        bn("0x" + rawResult.slice(-40, -38)).toNumber()
+      );
+
+      let transferSecurityLevel: TransferSecurityLevel;
+
+      const [a, b, c, d, e] = [
+        policyBypassed,
+        blacklistBased,
+        directTransfersDisabled,
+        contractRecipientsDisabled,
+        signatureRegistrationRequired,
+      ];
+      if (a && !b && !c && !d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.One;
+      } else if (!a && b && !c && !d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.Two;
+      } else if (!a && !b && !c && !d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.Three;
+      } else if (!a && !b && c && !d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.Four;
+      } else if (!a && !b && !c && d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.Five;
+      } else if (!a && !b && !c && !d && e) {
+        transferSecurityLevel = TransferSecurityLevel.Six;
+      } else if (!a && !b && c && d && !e) {
+        transferSecurityLevel = TransferSecurityLevel.Seven;
+      } else if (!a && !b && c && !d && e) {
+        transferSecurityLevel = TransferSecurityLevel.Eight;
+      } else {
+        throw new Error("Unreachable");
+      }
+
+      const transferValidator = new Contract(
+        transferValidatorAddress,
+        new Interface([
+          "function getAuthorizerAccounts(uint120 listId) view returns (address[] accounts)",
+        ]),
+        baseProvider
+      );
+      const authorizers: string[] = await transferValidator.getAuthorizerAccounts(listId);
+
+      // The below code is not correct, since only orders using the OpenSea zone are fillable
+      // and not all orders using the OpenSea conduit. However this simple approach should be
+      // enough for now.
+
+      // Grant the OpenSea conduit if the authorizer
+      const additionalContracts: string[] = [];
+      if (
+        authorizers.find(
+          (authorizer) =>
+            authorizer.toLowerCase() ===
+            Sdk.SeaportBase.Addresses.OpenSeaV16SignedZone[config.chainId]
+        )
+      ) {
+        additionalContracts.push(
+          new Sdk.SeaportBase.ConduitController(config.chainId).deriveConduit(
+            Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId]
+          )
+        );
+      }
+
+      return {
+        transferValidator: transferValidatorAddress.toLowerCase(),
+        transferSecurityLevel,
+        listId,
+        whitelist: await refreshWhitelist(transferValidatorAddress, listId, additionalContracts),
+        blacklist: await refreshBlacklist(transferValidatorAddress, listId, additionalContracts),
+      };
+    } else {
+      const transferValidator = new Contract(
+        transferValidatorAddress,
+        new Interface([
+          `
           function getCollectionSecurityPolicyV2(address collection) view returns (
             uint8 transferSecurityLevel,
             uint120 listId
           )
         `,
-      ]),
-      baseProvider
-    );
+        ]),
+        baseProvider
+      );
 
-    const securityPolicy = await transferValidator.getCollectionSecurityPolicyV2(contract);
+      const securityPolicy = await transferValidator.getCollectionSecurityPolicyV2(contract);
 
-    const listId = securityPolicy.listId.toString();
+      const listId = securityPolicy.listId.toString();
 
-    return {
-      transferValidator: transferValidatorAddress.toLowerCase(),
-      transferSecurityLevel: securityPolicy.transferSecurityLevel,
-      listId,
-      whitelist: await refreshWhitelist(transferValidatorAddress, listId),
-      blacklist: await refreshBlacklist(transferValidatorAddress, listId),
-    };
+      return {
+        transferValidator: transferValidatorAddress.toLowerCase(),
+        transferSecurityLevel: securityPolicy.transferSecurityLevel,
+        listId,
+        whitelist: await refreshWhitelist(transferValidatorAddress, listId),
+        blacklist: await refreshBlacklist(transferValidatorAddress, listId),
+      };
+    }
   } catch {
     // Skip errors
   }
@@ -97,6 +194,12 @@ export const getConfigFromDb = async (contract: string): Promise<ERC721CV2Config
     whitelist: result.whitelist ?? [],
     blacklist: result.blacklist ?? [],
   };
+};
+
+const deleteConfig = async (contract: string) => {
+  await idb.none("DELETE FROM erc721c_v2_configs WHERE contract = $/contract/", {
+    contract: toBuffer(contract),
+  });
 };
 
 export const refreshConfig = async (contract: string) => {
@@ -136,7 +239,11 @@ export const refreshConfig = async (contract: string) => {
   return undefined;
 };
 
-export const refreshWhitelist = async (transferValidator: string, id: string) => {
+export const refreshWhitelist = async (
+  transferValidator: string,
+  id: string,
+  contractsToAdd?: string[]
+) => {
   const tv = new Contract(
     transferValidator,
     new Interface([
@@ -152,10 +259,11 @@ export const refreshWhitelist = async (transferValidator: string, id: string) =>
 
   const codeHashes: string[] = await tv
     .getWhitelistedCodeHashes(id)
-    .then((r: string[]) => r.map((c: string) => c.toLowerCase()));
+    .then((r: string[]) => r.map((c: string) => c.toLowerCase()))
+    .catch(() => []);
 
   const whitelist = {
-    accounts,
+    accounts: [...accounts, ...(contractsToAdd ?? [])],
     codeHashes,
   };
 
@@ -216,7 +324,11 @@ export const refreshWhitelist = async (transferValidator: string, id: string) =>
   return whitelist;
 };
 
-export const refreshBlacklist = async (transferValidator: string, id: string) => {
+export const refreshBlacklist = async (
+  transferValidator: string,
+  id: string,
+  contractsToSkip?: string[]
+) => {
   const tv = new Contract(
     transferValidator,
     new Interface([
@@ -232,10 +344,11 @@ export const refreshBlacklist = async (transferValidator: string, id: string) =>
 
   const codeHashes: string[] = await tv
     .getBlacklistedCodeHashes(id)
-    .then((r: string[]) => r.map((c: string) => c.toLowerCase()));
+    .then((r: string[]) => r.map((c: string) => c.toLowerCase()))
+    .catch(() => []);
 
   const blacklist = {
-    accounts,
+    accounts: accounts.filter((account) => !(contractsToSkip ?? []).includes(account)),
     codeHashes,
   };
 
@@ -296,18 +409,20 @@ export const refreshBlacklist = async (transferValidator: string, id: string) =>
   return blacklist;
 };
 
-function getListByConfig(config: ERC721CV2Config): {
+const getListByConfig = (
+  config: ERC721CV2Config
+): {
   whitelist?: string[];
   blacklist?: string[];
-} {
+} => {
   switch (config.transferSecurityLevel) {
     // No restrictions
-    case TransferSecurityLevel.Zero: {
+    case TransferSecurityLevel.One: {
       return {};
     }
 
     // Blacklist restrictions
-    case TransferSecurityLevel.One: {
+    case TransferSecurityLevel.Two: {
       return {
         blacklist: config.blacklist.accounts,
       };
@@ -320,12 +435,12 @@ function getListByConfig(config: ERC721CV2Config): {
       };
     }
   }
-}
+};
 
 export const checkMarketplaceIsFiltered = async (contract: string, operators: string[]) => {
   const config = await getConfigFromDb(contract);
   if (!config) {
-    return false;
+    throw new Error("Missing config");
   }
 
   const { whitelist, blacklist } = getListByConfig(config);

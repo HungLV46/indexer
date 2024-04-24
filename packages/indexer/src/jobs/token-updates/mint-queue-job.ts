@@ -3,8 +3,7 @@ import { toBuffer } from "@/common/utils";
 import { AbstractRabbitMqJobHandler, BackoffStrategy } from "@/jobs/abstract-rabbit-mq-job-handler";
 import { logger } from "@/common/logger";
 import { recalcTokenCountQueueJob } from "@/jobs/collection-updates/recalc-token-count-queue-job";
-import { acquireLock, redis } from "@/common/redis";
-import * as tokenSets from "@/orderbook/token-sets";
+import { acquireLock } from "@/common/redis";
 import { config } from "@/config/index";
 import { getNetworkSettings } from "@/config/network";
 import { tokenRefreshCacheJob } from "@/jobs/token-updates/token-refresh-cache-job";
@@ -12,6 +11,7 @@ import _ from "lodash";
 import { fetchCollectionMetadataJob } from "@/jobs/token-updates/fetch-collection-metadata-job";
 import { metadataIndexFetchJob } from "@/jobs/metadata-index/metadata-fetch-job";
 import { collectionMetadataQueueJob } from "../collection-updates/collection-metadata-queue-job";
+import { refreshDynamicTokenSetJob } from "@/jobs/token-set-updates/refresh-dynamic-token-set-job";
 
 export type MintQueueJobPayload = {
   contract: string;
@@ -31,24 +31,6 @@ export default class MintQueueJob extends AbstractRabbitMqJobHandler {
 
   public async process(payload: MintQueueJobPayload) {
     const { contract, tokenId, mintedTimestamp } = payload;
-
-    if ([1, 137, 11155111].includes(config.chainId)) {
-      const tokenMetadataIndexingDebug = await redis.sismember(
-        "metadata-indexing-debug-contracts",
-        contract
-      );
-
-      if (tokenMetadataIndexingDebug) {
-        logger.info(
-          this.queueName,
-          JSON.stringify({
-            topic: "tokenMetadataIndexingDebug",
-            message: `Start. contract=${contract}, tokenId=${tokenId}`,
-            payload,
-          })
-        );
-      }
-    }
 
     try {
       // First, check the database for any matching collection
@@ -127,6 +109,7 @@ export default class MintQueueJob extends AbstractRabbitMqJobHandler {
                 updated_at = now()
               WHERE tokens.contract = $/contract/
                 AND tokens.token_id = $/tokenId/
+                AND ("collection_id" IS DISTINCT FROM $/collection/)
             `,
             values: {
               contract: toBuffer(contract),
@@ -169,32 +152,7 @@ export default class MintQueueJob extends AbstractRabbitMqJobHandler {
           await idb.none(pgp.helpers.concat(queries));
 
           // Refresh any dynamic token set
-          const cacheKey = `refresh-collection-non-flagged-token-set:${collection.id}`;
-
-          if (!(await redis.get(cacheKey))) {
-            const tokenSet = await tokenSets.dynamicCollectionNonFlagged.get({
-              collection: collection.id,
-            });
-            const tokenSetResult = await idb.oneOrNone(
-              `
-              SELECT 1 FROM token_sets
-              WHERE token_sets.id = $/id/
-            `,
-              {
-                id: tokenSet.id,
-              }
-            );
-
-            if (tokenSetResult) {
-              await tokenSets.dynamicCollectionNonFlagged.save(
-                { collection: collection.id },
-                undefined,
-                true
-              );
-            }
-
-            await redis.set(cacheKey, "locked", "EX", 10 * 60);
-          }
+          await refreshDynamicTokenSetJob.addToQueue({ collectionId: collection.id });
 
           // Refresh the metadata for the new token
           if (!config.disableRealtimeMetadataRefresh) {

@@ -12,6 +12,7 @@ import { baseProvider } from "@/common/provider";
 import { bn, regex } from "@/common/utils";
 import { config } from "@/config/index";
 import { ExecutionsBuffer } from "@/utils/executions";
+import * as orderbookFee from "@/utils/orderbook-fee";
 
 // LooksRare
 import * as looksRareV2BuyToken from "@/orderbook/orders/looks-rare-v2/build/buy/token";
@@ -284,6 +285,9 @@ export const getExecuteBidV4Options: RouteOptions = {
           params.fee.push(fee);
           params.feeRecipient.push(feeRecipient);
         }
+
+        // Handle orderbook fee
+        await orderbookFee.attachOrderbookFee(params, request.headers["x-api-key"]);
 
         // Check the maker's balance
         let wrapEthTx: TxData | undefined;

@@ -1553,7 +1553,6 @@ describe("[ReservoirV6_0_1] Filling listings and bids via the SDK", () => {
 
     const { txs } = await router.fillBidsTx(bids, seller.address, {
       source: "reservoir.market",
-      forceApprovalProxy: true,
     });
 
     for (const tx of txs) {

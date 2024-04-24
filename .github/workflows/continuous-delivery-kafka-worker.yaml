@@ -57,7 +57,7 @@ jobs:
 
       - name: Build and push
         # if: steps.semantic.outputs.new_release_version != ''
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         with:
           push: true
           tags: |
@@ -66,6 +66,8 @@ jobs:
           # ghcr.io/reservoirprotocol/indexer:${{ steps.semantic.outputs.new_release_version }}
           # build-args: |
           #   VERSION=${{ steps.semantic.outputs.new_release_version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # - name: Publish github release
       #   if: steps.semantic.outputs.new_release_version != ''
@@ -234,6 +236,18 @@ jobs:
 
           ./utils/version_update_batch.sh indexer-apex-testnet ${{ github.sha }} \
             ./prod/platform/indexer-kafka-worker-apex-testnet.yaml
+          
+          ./utils/version_update_batch.sh indexer-berachain-testnet ${{ github.sha }} \
+            ./prod/platform/indexer-kafka-worker-berachain-testnet.yaml
+          
+          ./utils/version_update_batch.sh indexer-garnet ${{ github.sha }} \
+            ./prod/platform/indexer-kafka-worker-garnet.yaml
+          
+          ./utils/version_update_batch.sh indexer-redstone ${{ github.sha }} \
+            ./prod/platform/indexer-kafka-worker-redstone.yaml
+
+          ./utils/version_update_batch.sh indexer-amoy ${{ github.sha }} \
+            ./prod/platform/indexer-kafka-worker-amoy.yaml
 
       - name: Post to Slack
         if: ${{ always() }}

@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { CollectionMetadata } from "@/metadata/types";
+
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 export const extendCollection = async (metadata: CollectionMetadata, _tokenId = null) => {
   if (isNaN(Number(_tokenId)) || !_tokenId) {
     throw new Error(`Invalid tokenId ${_tokenId}`);

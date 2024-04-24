@@ -267,11 +267,19 @@ export class Router {
     const txs: FillMintsResult["txs"][0][] = [];
     const success: { [orderId: string]: boolean } = {};
 
+    // Only relevant for ERC20 mints
+    const approvals: FTApproval[] = [];
+
     const sender = options?.relayer ?? taker;
+    const hasNoneNativeMint = details.some(
+      (c) => !isNative(this.chainId, c.currency ?? Sdk.Common.Addresses.Native[this.chainId])
+    );
 
     if (
       !Addresses.MintModule[this.chainId] ||
       options?.forceDirectFilling ||
+      // ERC20 mints
+      hasNoneNativeMint ||
       // Single mints with no fees, no comment and no `relayer` field (only if the mint doesn't have an explicit recipient)
       (details.length === 1 &&
         !details[0].fees?.length &&
@@ -280,8 +288,25 @@ export class Router {
     ) {
       // Under some conditions, we simply return that transaction data back to the caller
 
-      for (const { txData, orderId } of details) {
+      for (const { txData, orderId, currency, price, quantity } of details) {
+        if (price && currency && currency !== Sdk.Common.Addresses.Native[this.chainId]) {
+          approvals.push({
+            currency: currency,
+            amount: bn(price).mul(quantity),
+            owner: taker,
+            operator: txData.to.toLowerCase(),
+            txData: generateFTApprovalTxData(currency, taker, txData.to.toLowerCase()),
+          });
+        }
+
+        // Ensure approvals are unique
+        const uniqueApprovals = uniqBy(
+          approvals,
+          ({ txData: { from, to, data } }) => `${from}-${to}-${data}`
+        );
+
         txs.push({
+          approvals: uniqueApprovals,
           txData: {
             ...txData,
             from: sender,
@@ -327,6 +352,7 @@ export class Router {
         .reduce((a, b) => a.add(b), bn(0))
         .toHexString();
       txs.push({
+        approvals: [],
         txData: {
           from: sender,
           to: this.contracts.router.address,
@@ -529,7 +555,9 @@ export class Router {
             swapDetails.push({
               tokenIn: buyInCurrency,
               tokenOut: detail.currency,
-              tokenOutAmount: order.params.itemPrice,
+              tokenOutAmount: bn(order.params.itemPrice)
+                .div(order.params.amount)
+                .mul(detail.amount ?? 1),
               recipient: taker,
               refundTo: taker,
               details: [detail],
@@ -646,11 +674,14 @@ export class Router {
       const operator = exchange.contract.address;
 
       for (const d of blockedPaymentProcessorDetails) {
+        const order = d.order as Sdk.PaymentProcessorV2.Order;
         if (buyInCurrency !== d.currency) {
           swapDetails.push({
             tokenIn: buyInCurrency,
             tokenOut: d.currency,
-            tokenOutAmount: d.price,
+            tokenOutAmount: bn(order.params.itemPrice)
+              .div(order.params.amount)
+              .mul(d.amount ?? 1),
             recipient: taker,
             refundTo: taker,
             details: [d],
@@ -932,13 +963,19 @@ export class Router {
               details[i] = {
                 ...detail,
                 kind: "seaport-v1.5",
-                order: new Sdk.SeaportV15.Order(this.chainId, result.data.order),
+                order: new Sdk.SeaportV15.Order(this.chainId, {
+                  ...result.data.order,
+                  extraData: result.data.extraData,
+                }),
               };
             } else {
               details[i] = {
                 ...detail,
                 kind: "seaport-v1.6",
-                order: new Sdk.SeaportV16.Order(this.chainId, result.data.order),
+                order: new Sdk.SeaportV16.Order(this.chainId, {
+                  ...result.data.order,
+                  extraData: result.data.extraData,
+                }),
               };
             }
           } catch (error) {
@@ -1387,7 +1424,7 @@ export class Router {
 
         case "seaport-v1.6":
           if (!seaportV16Details[currency]) {
-            seaportV15Details[currency] = [];
+            seaportV16Details[currency] = [];
           }
           detailsRef = seaportV16Details[currency];
           break;
@@ -4562,7 +4599,7 @@ export class Router {
 
       const fees = getFees(detail);
 
-      if (detail.kind !== "seaport-v1.5-partial") {
+      if (detail.kind !== "seaport-v1.5-partial" && detail.kind !== "seaport-v1.6-partial") {
         addRouterTags(detail.kind, 1, fees.length);
       }
 
@@ -4822,7 +4859,7 @@ export class Router {
 
         case "seaport-v1.6": {
           const order = detail.order as Sdk.SeaportV16.Order;
-          const module = this.contracts.seaportV15Module;
+          const module = this.contracts.seaportV16Module;
 
           const matchParams = order.buildMatching({
             tokenId: detail.tokenId,
@@ -5297,6 +5334,13 @@ export class Router {
 
           const tokenId = detail.tokenId;
           order.params.specificIds = [tokenId];
+
+          // TODO: We should be able to fill multiple `specificIds` via the same order
+          // and this way we can also use the ZeroEx module for accurate pricing data,
+          // rather than using the below ugly price adjustment hack.
+
+          // The detail will contain the price to use for the order (we adjust it down to avoid precision issues)
+          order.params.price = bn(detail.price).mul(99).div(100).toString();
 
           // Cover the case where the path is missing
           order.params.path = order.params.path.length
@@ -5885,7 +5929,17 @@ export class Router {
           to: this.contracts.approvalProxy.address,
           data:
             this.contracts.approvalProxy.interface.encodeFunctionData("bulkTransferWithExecute", [
-              nftTransferItems,
+              nftTransferItems.filter(({ items }) =>
+                executionsWithDetails.find(
+                  ({ detail }) =>
+                    items[0].itemType ===
+                      (detail.contractKind === "erc721"
+                        ? ApprovalProxy.ItemType.ERC721
+                        : ApprovalProxy.ItemType.ERC1155) &&
+                    detail.contract === items[0].token &&
+                    detail.tokenId === items[0].identifier
+                )
+              ),
               [...executionsWithDetails.map(({ execution }) => execution)],
               Sdk.SeaportBase.Addresses.ReservoirConduitKey[this.chainId],
             ]) + generateSourceBytes(options?.source),

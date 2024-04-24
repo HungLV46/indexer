@@ -72,7 +72,7 @@ const verify = async (contractName: string, version: string, args: any[]) => {
     throw new Error("No deployment found");
   }
 
-  await dh.verify(address, args);
+  await dh.verify(address, args, contractName);
 };
 
 const waitBeforeVerification = async () => {
@@ -143,9 +143,10 @@ export const trigger = {
             true,
             getGasConfigs(chainId)
           );
+          console.log("Granted conduit access to ApprovalProxy");
         }
 
-        // Grant Seaport
+        // Grant Seaport 1.5
         if (
           Sdk.SeaportV15.Addresses.Exchange[chainId] &&
           !(await conduitController.getChannelStatus(
@@ -159,6 +160,24 @@ export const trigger = {
             true,
             getGasConfigs(chainId)
           );
+          console.log("Granted conduit access to Seaport v1.5");
+        }
+
+        // Grant Seaport 1.6
+        if (
+          Sdk.SeaportV16.Addresses.Exchange[chainId] &&
+          !(await conduitController.getChannelStatus(
+            result.conduit,
+            Sdk.SeaportV16.Addresses.Exchange[chainId]
+          ))
+        ) {
+          await conduitController.updateChannel(
+            result.conduit,
+            Sdk.SeaportV16.Addresses.Exchange[chainId],
+            true,
+            getGasConfigs(chainId)
+          );
+          console.log("Granted conduit access to Seaport v1.6");
         }
 
         if (!(await readDeployment(contractName, version, chainId))) {
@@ -238,6 +257,12 @@ export const trigger = {
         Sdk.RouterV6.Addresses.Router[chainId],
         Sdk.SeaportV15.Addresses.Exchange[chainId],
       ]),
+    SeaportV16Module: async (chainId: number) =>
+      dv("SeaportV16Module", "v1", [
+        DEPLOYER,
+        Sdk.RouterV6.Addresses.Router[chainId],
+        Sdk.SeaportV16.Addresses.Exchange[chainId],
+      ]),
     AlienswapModule: async (chainId: number) =>
       dv("AlienswapModule", "v1", [
         DEPLOYER,
@@ -251,7 +276,7 @@ export const trigger = {
         Sdk.Sudoswap.Addresses.Router[chainId],
       ]),
     SudoswapV2Module: async (chainId: number) =>
-      [1, 5, 8453].includes(chainId)
+      [1, 5, 8453, 81457, 42161].includes(chainId)
         ? dv("SudoswapV2Module", "v2", [DEPLOYER, Sdk.RouterV6.Addresses.Router[chainId]])
         : undefined,
     CaviarV1Module: async (chainId: number) =>
@@ -333,18 +358,19 @@ export const trigger = {
         await writeDeployment(trustedForwarderAddress, "TrustedForwarder", version, chainId);
       }
     },
-    OffChainCancellationZone: async (chainId: number) => {
+    OffChainCancellationZone: async (chainId: number, seaportVersion: "v1.5" | "v1.6") => {
       const version = "v1";
 
-      if (!(await readDeployment("SignedZoneController", version, chainId))) {
-        await dv("SignedZoneController", version, []);
+      const postfix = seaportVersion === "v1.5" ? "" : "V16";
+      if (!(await readDeployment(`SignedZoneController${postfix}`, version, chainId))) {
+        await dv(`SignedZoneController${postfix}`, version, []);
       }
-      // await verify("SignedZoneController", version, []);
+      // await verify(`SignedZoneController${postfix}`, version, []);
 
       const [deployer] = await ethers.getSigners();
 
       const controller = new Contract(
-        await readDeployment("SignedZoneController", version, chainId).then((a) => a!),
+        await readDeployment(`SignedZoneController${postfix}`, version, chainId).then((a) => a!),
         new Interface([
           "function createZone(string zoneName, string apiEndpoint, string documentationURI, address initialOwner, bytes32 salt)",
           "function getZone(bytes32 salt) view returns (address)",
@@ -368,11 +394,11 @@ export const trigger = {
         );
         await tx.wait();
 
-        await writeDeployment(zoneAddress, "SignedZone", version, chainId);
+        await writeDeployment(zoneAddress, `SignedZone${postfix}`, version, chainId);
         await waitBeforeVerification();
-        await verify("SignedZone", version, []);
+        await verify(`SignedZone${postfix}`, version, []);
       }
-      // await verify("SignedZone", version, []);
+      // await verify(`SignedZone${postfix}`, version, []);
 
       const oracleSigner = "0x32da57e736e05f75aa4fae2e9be60fd904492726";
       const activeSigners = await controller

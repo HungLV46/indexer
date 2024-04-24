@@ -6,9 +6,9 @@ import Joi from "joi";
 import _ from "lodash";
 
 import { config } from "@/config/index";
-import { allChainsSyncRedis, redis } from "@/common/redis";
 import { AllChainsChannel, Channel } from "@/pubsub/channels";
 import { PausedRabbitMqQueues } from "@/models/paused-rabbit-mq-queues";
+import { AllChainsPubSub, PubSub } from "@/pubsub/index";
 
 export const postPauseRabbitQueueOptions: RouteOptions = {
   description: "Pause rabbit queue",
@@ -36,12 +36,12 @@ export const postPauseRabbitQueueOptions: RouteOptions = {
     }
 
     if (payload.allChains) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.PauseRabbitConsumerQueue,
         JSON.stringify({ queueName: payload.queueName })
       );
     } else {
-      await redis.publish(
+      await PubSub.publish(
         Channel.PauseRabbitConsumerQueue,
         JSON.stringify({ queueName: payload.queueName })
       );

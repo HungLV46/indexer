@@ -228,7 +228,7 @@ export default class OnchainMetadataProcessTokenUriJob extends AbstractRabbitMqJ
           const urlParts = uri.split("/");
           const tokenIdPart = urlParts[urlParts.length - 1];
 
-          if (parseInt(tokenIdPart, 16) == Number(tokenId)) {
+          if (Number(tokenId) >= 10 && parseInt(tokenIdPart, 16) == Number(tokenId)) {
             const newUri = uri.replace(tokenIdPart, tokenId);
 
             await onchainMetadataProcessTokenUriJob.addToQueue({

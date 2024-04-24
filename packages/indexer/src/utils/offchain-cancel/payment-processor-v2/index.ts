@@ -67,7 +67,7 @@ export const doCancel = async ({
 }) => {
   const success = await verifyOffChainCancellationSignature(orderIds, signature, maker);
   if (!success) {
-    throw new Error("Cancellation failed");
+    throw new Error("Invalid signature");
   }
 
   // Save cancellations
@@ -76,12 +76,22 @@ export const doCancel = async ({
 
 export const doSignOrder = async (order: Sdk.PaymentProcessorV2.Order, taker: string) => {
   if (order.isCosignedOrder()) {
+    const orderId = order.hash();
+
     const isOffChainCancelled = await idb.oneOrNone(
       `SELECT 1 FROM off_chain_cancellations WHERE order_id = $/orderId/`,
-      { orderId: order.hash() }
+      { orderId }
     );
     if (isOffChainCancelled) {
       throw new Error("Order is off-chain cancelled");
+    }
+
+    const isFillable = await idb.oneOrNone(
+      `SELECT 1 FROM orders WHERE id = $/orderId/ AND orders.fillability_status = 'fillable' AND orders.approval_status = 'approved'`,
+      { orderId }
+    );
+    if (!isFillable) {
+      throw new Error("Order is not fillable");
     }
 
     const consiger = order.params.cosigner!;

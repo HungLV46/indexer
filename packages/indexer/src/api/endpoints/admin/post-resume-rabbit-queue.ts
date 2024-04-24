@@ -5,10 +5,10 @@ import { Request, RouteOptions } from "@hapi/hapi";
 import Joi from "joi";
 
 import { config } from "@/config/index";
-import { allChainsSyncRedis, redis } from "@/common/redis";
 import { AllChainsChannel, Channel } from "@/pubsub/channels";
 import _ from "lodash";
 import { PausedRabbitMqQueues } from "@/models/paused-rabbit-mq-queues";
+import { AllChainsPubSub, PubSub } from "@/pubsub/index";
 
 export const postResumeRabbitQueueOptions: RouteOptions = {
   description: "Resume rabbit queue",
@@ -36,12 +36,12 @@ export const postResumeRabbitQueueOptions: RouteOptions = {
     }
 
     if (payload.allChains) {
-      await allChainsSyncRedis.publish(
+      await AllChainsPubSub.publish(
         AllChainsChannel.ResumeRabbitConsumerQueue,
         JSON.stringify({ queueName: payload.queueName })
       );
     } else {
-      await redis.publish(
+      await PubSub.publish(
         Channel.ResumeRabbitConsumerQueue,
         JSON.stringify({ queueName: payload.queueName })
       );

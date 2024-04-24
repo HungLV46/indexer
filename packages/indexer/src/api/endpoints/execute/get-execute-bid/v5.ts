@@ -13,9 +13,10 @@ import { randomUUID } from "crypto";
 import Joi from "joi";
 import _ from "lodash";
 
+import { redb } from "@/common/db";
 import { logger } from "@/common/logger";
 import { baseProvider } from "@/common/provider";
-import { bn, now, regex } from "@/common/utils";
+import { bn, now, regex, toBuffer } from "@/common/utils";
 import { config } from "@/config/index";
 import { ApiKeyManager } from "@/models/api-keys";
 import { FeeRecipients } from "@/models/fee-recipients";
@@ -27,6 +28,7 @@ import * as e from "@/utils/auth/erc721c";
 import * as erc721c from "@/utils/erc721c";
 import { ExecutionsBuffer } from "@/utils/executions";
 import { checkAddressIsBlockedByOFAC } from "@/utils/ofac";
+import * as orderbookFee from "@/utils/orderbook-fee";
 import { getEphemeralPermit, getEphemeralPermitId, saveEphemeralPermit } from "@/utils/permits";
 
 // Blur
@@ -236,6 +238,11 @@ export const getExecuteBidV5Options: RouteOptions = {
               .lowercase()
               .default(Sdk.Common.Addresses.WNative[config.chainId]),
             usePermit: Joi.boolean().description("When true, will use permit to avoid approvals."),
+            checkMakerOutstandingBalance: Joi.boolean()
+              .optional()
+              .description(
+                "Check if the maker has enough balance to cover all open bid orders (of the current token / collection / attribute type)"
+              ),
           })
             .or("token", "collection", "tokenSetId")
             .oxor("token", "collection", "tokenSetId")
@@ -327,6 +334,7 @@ export const getExecuteBidV5Options: RouteOptions = {
         salt?: string;
         nonce?: string;
         usePermit?: string;
+        checkMakerOutstandingBalance?: string;
       }[];
 
       // Source restrictions
@@ -542,9 +550,9 @@ export const getExecuteBidV5Options: RouteOptions = {
           try {
             if (p.token || p.collection) {
               const contract = p.token ? p.token.split(":")[0] : p.collection!;
+              const configV1 = await erc721c.v1.getConfigFromDb(contract);
+              const configV2 = await erc721c.v2.getConfigFromDb(contract);
 
-              const configV1 = await erc721c.v1.getConfig(contract);
-              const configV2 = await erc721c.v2.getConfig(contract);
               if (
                 (configV1 && [4, 6].includes(configV1.transferSecurityLevel)) ||
                 (configV2 && [6, 8].includes(configV2.transferSecurityLevel))
@@ -645,6 +653,11 @@ export const getExecuteBidV5Options: RouteOptions = {
           if (params.orderKind === "seaport-v1.4") {
             params.orderKind = "seaport-v1.5";
           }
+
+          if (params.orderbook === "opensea" && params.orderKind === "seaport-v1.5") {
+            params.orderKind = "seaport-v1.6";
+          }
+
           // Force usage of looks-rare-v2
           if (params.orderKind === "looks-rare") {
             params.orderKind = "looks-rare-v2";
@@ -659,7 +672,10 @@ export const getExecuteBidV5Options: RouteOptions = {
               await checkBlacklistAndFallback(token.split(":")[0], params);
             }
           } catch (error) {
-            return errors.push({ message: (error as any).message, orderIndex: i });
+            return errors.push({
+              message: `Blacklist check error: ${(error as any).message}`,
+              orderIndex: i,
+            });
           }
 
           // PPv2 restrictions
@@ -725,6 +741,9 @@ export const getExecuteBidV5Options: RouteOptions = {
             await feeRecipients.create(feeRecipient, "royalty", source);
           }
 
+          // Handle orderbook fee
+          await orderbookFee.attachOrderbookFee(params, request.headers["x-api-key"]);
+
           try {
             const WNATIVE = Sdk.Common.Addresses.WNative[config.chainId];
             const BETH = Sdk.Blur.Addresses.Beth[config.chainId];
@@ -746,16 +765,64 @@ export const getExecuteBidV5Options: RouteOptions = {
               ? bn(params.weiPrice)
               : bn(params.weiPrice).mul(params.quantity ?? 1);
 
-            // Check the maker's balance
+            const attribute =
+              collectionId && attributeKey && attributeValue
+                ? {
+                    collection: collectionId,
+                    key: attributeKey,
+                    value: attributeValue,
+                  }
+                : undefined;
+            const collection =
+              collectionId && !attributeKey && !attributeValue ? collectionId : undefined;
+
+            let makerOutstandingBalance = bn(0);
+            if (params.checkMakerOutstandingBalance) {
+              if (!collection) {
+                return errors.push({
+                  message: "Balance checks are only supported for collection bids",
+                  orderIndex: i,
+                });
+              }
+
+              const result = await redb.oneOrNone(
+                `
+                  WITH x AS (
+                    SELECT DISTINCT ON (orders.id)
+                      orders.currency_price,
+                      orders.quantity_remaining
+                    FROM orders
+                    JOIN token_sets
+                      ON orders.token_set_id = token_sets.id
+                    WHERE token_sets.collection_id = $/collection/
+                      AND orders.side = 'buy'
+                      AND orders.maker = $/maker/
+                      AND orders.currency = $/currency/
+                      AND (orders.fillability_status = 'fillable' OR orders.fillability_status = 'no-balance')
+                  )
+                  SELECT SUM(x.currency_price * x.quantity_remaining) FROM x
+                `,
+                {
+                  collection,
+                  maker: toBuffer(maker),
+                  currency: toBuffer(params.currency),
+                }
+              );
+              if (result?.total_balance) {
+                makerOutstandingBalance = bn(result.total_balance);
+              }
+            }
 
             const currency = new Sdk.Common.Helpers.Erc20(baseProvider, params.currency);
             const currencyBalance = await currency.getBalance(maker);
-            if (bn(currencyBalance).lt(totalPrice)) {
+            if (bn(currencyBalance).sub(makerOutstandingBalance).lt(totalPrice)) {
               if ([WNATIVE, BETH].includes(params.currency)) {
-                const ethBalance = await baseProvider.getBalance(maker);
-                if (bn(currencyBalance).add(ethBalance).lt(totalPrice)) {
+                const nativeBalance = await baseProvider.getBalance(maker);
+                if (
+                  bn(currencyBalance).add(nativeBalance).sub(makerOutstandingBalance).lt(totalPrice)
+                ) {
                   return errors.push({
-                    message: "Maker does not have sufficient balance",
+                    message: `Maker does not have sufficient balance (currencyBalance = ${currencyBalance.toString()}, nativeBalance = ${nativeBalance.toString()}, totalPrice = ${totalPrice.toString()}, makerOutstandingBalance = ${makerOutstandingBalance.toString()})`,
                     orderIndex: i,
                   });
                 } else {
@@ -773,22 +840,11 @@ export const getExecuteBidV5Options: RouteOptions = {
                 }
               } else {
                 return errors.push({
-                  message: "Maker does not have sufficient balance",
+                  message: `Maker does not have sufficient balance (currencyBalance = ${currencyBalance.toString()}, totalPrice = ${totalPrice.toString()}, makerOutstandingBalance = ${makerOutstandingBalance.toString()})`,
                   orderIndex: i,
                 });
               }
             }
-
-            const attribute =
-              collectionId && attributeKey && attributeValue
-                ? {
-                    collection: collectionId,
-                    key: attributeKey,
-                    value: attributeValue,
-                  }
-                : undefined;
-            const collection =
-              collectionId && !attributeKey && !attributeValue ? collectionId : undefined;
 
             const supportedPermitCurrencies = Sdk.Common.Addresses.Usdc[config.chainId] ?? [];
             if (params.usePermit && !supportedPermitCurrencies.includes(params.currency)) {
@@ -1829,7 +1885,7 @@ export const getExecuteBidV5Options: RouteOptions = {
             }
           } catch (error: any) {
             return errors.push({
-              message: error.response?.data ? JSON.stringify(error.response.data) : error.message,
+              message: JSON.stringify(error),
               orderIndex: i,
             });
           }

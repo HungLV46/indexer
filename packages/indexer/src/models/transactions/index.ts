@@ -205,7 +205,7 @@ export const getTransaction = async (hash: string): Promise<Transaction | undefi
       SELECT
         transactions.from,
         transactions.to,
-        transactions.value,
+        trunc(transactions.value) AS value,
         transactions.data,
         transactions.block_number,
         transactions.block_timestamp

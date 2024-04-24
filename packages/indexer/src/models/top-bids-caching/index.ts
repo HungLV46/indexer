@@ -1,6 +1,6 @@
 import { redis } from "@/common/redis";
-import { getNetworkSettings } from "@/config/network";
 import { Collections } from "../collections";
+import { isSharedContract } from "@/metadata/extend";
 
 /**
  * Class that manage redis cache of top bid value for collection
@@ -10,7 +10,7 @@ class TopBidsCache {
 
   public async getCollectionTopBidValue(contract: string, tokenId: number): Promise<number | null> {
     let collectionTopBidValue;
-    if (getNetworkSettings().multiCollectionContracts.includes(contract)) {
+    if (isSharedContract(contract)) {
       const collection = await Collections.getByContractAndTokenId(contract, tokenId);
 
       collectionTopBidValue = await redis.get(`collection-top-bid:${collection?.id}`);

@@ -3,10 +3,10 @@ import { OrderKind } from "@reservoir0x/sdk/dist/seaport-base/types";
 import { ridb } from "@/common/db";
 import { logger } from "@/common/logger";
 import { acquireLock, redis } from "@/common/redis";
-import { getNetworkSettings } from "@/config/network";
 import { refreshContractCollectionsMetadataQueueJob } from "@/jobs/collection-updates/refresh-contract-collections-metadata-queue-job";
 import { Collections } from "@/models/collections";
 import { toBuffer } from "@/common/utils";
+import { isSharedContract } from "@/metadata/extend";
 
 export declare type OpenseaOrderParams = {
   kind: OrderKind;
@@ -108,7 +108,7 @@ export const getCollectionFloorAskValue = async (
   contract: string,
   tokenId: number
 ): Promise<number | undefined> => {
-  if (getNetworkSettings().multiCollectionContracts.includes(contract)) {
+  if (isSharedContract(contract)) {
     const collection = await Collections.getByContractAndTokenId(contract, tokenId);
     return collection?.floorSellValue;
   } else {

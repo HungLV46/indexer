@@ -2,6 +2,9 @@ import { Contract, utils } from "ethers";
 import { baseProvider } from "@/common/provider";
 import { CollectionMetadata, TokenMetadata } from "@/metadata/types";
 
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 export const extendCollection = async (metadata: CollectionMetadata, _tokenId: number) => {
   const nft = new Contract(
     metadata.contract,

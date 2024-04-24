@@ -10,6 +10,7 @@ import { buildContinuation, fromBuffer, regex, splitContinuation, toBuffer } fro
 import { Sources } from "@/models/sources";
 import { Orders } from "@/utils/orders";
 import * as Boom from "@hapi/boom";
+import _ from "lodash";
 
 const version = "v3";
 
@@ -254,12 +255,16 @@ export const getBidEventsV3Options: RouteOptions = {
                       nativeAmount: r.price,
                     },
                     net: {
-                      amount: query.normalizeRoyalties
-                        ? r.order_currency_normalized_value ?? r.value
-                        : r.order_currency_value ?? r.value,
-                      nativeAmount: query.normalizeRoyalties
-                        ? r.order_normalized_value ?? r.value
-                        : r.value,
+                      amount: _.max([
+                        query.normalizeRoyalties
+                          ? r.order_currency_normalized_value ?? r.value
+                          : r.order_currency_value ?? r.value,
+                        "0",
+                      ]),
+                      nativeAmount: _.max([
+                        query.normalizeRoyalties ? r.order_normalized_value ?? r.value : r.value,
+                        "0",
+                      ]),
                     },
                   },
                   fromBuffer(r.order_currency),

@@ -29,7 +29,10 @@ import {
 } from "@/orderbook/orders/seaport-base/utils";
 import * as tokenSet from "@/orderbook/token-sets";
 import { getCurrency } from "@/utils/currencies";
+import * as erc721c from "@/utils/erc721c";
 import { checkMarketplaceIsFiltered } from "@/utils/marketplace-blacklists";
+import * as offchainCancel from "@/utils/offchain-cancel";
+import { validateOrderbookFee } from "@/utils/orderbook-fee";
 import { getUSDAndNativePrices } from "@/utils/prices";
 import * as royalties from "@/utils/royalties";
 import { isOpen } from "@/utils/seaport-conduits";
@@ -40,6 +43,7 @@ export type OrderInfo = {
   isReservoir?: boolean;
   isOpenSea?: boolean;
   openSeaOrderParams?: OpenseaOrderParams;
+  isOkx?: boolean;
 };
 
 type SaveResult = {
@@ -63,7 +67,8 @@ export const save = async (
     metadata: OrderMetadata,
     isReservoir?: boolean,
     isOpenSea?: boolean,
-    openSeaOrderParams?: OpenseaOrderParams
+    openSeaOrderParams?: OpenseaOrderParams,
+    isOkx?: boolean
   ) => {
     try {
       const order = new Sdk.SeaportV16.Order(config.chainId, orderParams);
@@ -140,7 +145,7 @@ export const save = async (
           [
             {
               kind: "seaport-v1.6",
-              info: { orderParams, metadata, isReservoir, isOpenSea, openSeaOrderParams },
+              info: { orderParams, metadata, isReservoir, isOpenSea, openSeaOrderParams, isOkx },
               validateBidValue,
               ingestMethod,
               ingestDelay: startTime - currentTime + 5,
@@ -168,12 +173,27 @@ export const save = async (
       const isFiltered = await checkMarketplaceIsFiltered(info.contract, [
         new Sdk.SeaportV16.Exchange(config.chainId).deriveConduit(order.params.conduitKey),
       ]);
-
       if (isFiltered) {
         return results.push({
           id,
           status: "filtered",
         });
+      }
+
+      const erc721cConfigV2 = await erc721c.v2.getConfigFromDb(info.contract);
+      if (erc721cConfigV2) {
+        const osCustomTransferValidator =
+          Sdk.SeaportBase.Addresses.OpenSeaCustomTransferValidator[config.chainId];
+        if (
+          osCustomTransferValidator &&
+          erc721cConfigV2.transferValidator === osCustomTransferValidator &&
+          !isOpenSea
+        ) {
+          return results.push({
+            id,
+            status: "filtered",
+          });
+        }
       }
 
       // Check: buy order has a supported payment token
@@ -193,13 +213,23 @@ export const save = async (
         });
       }
 
+      const usesOSZone =
+        Sdk.SeaportBase.Addresses.OpenSeaV16SignedZone[config.chainId] === order.params.zone &&
+        isOpenSea;
+
       // Check: order has a known zone
       if (order.params.orderType > 1) {
         if (
           ![
             // No zone
             AddressZero,
-          ].includes(order.params.zone)
+            // Reservoir cancellation zone
+            Sdk.SeaportBase.Addresses.ReservoirV16CancellationZone[config.chainId],
+            // Okx cancellation zone
+            Sdk.SeaportBase.Addresses.OkxV16CancellationZone[config.chainId],
+          ].includes(order.params.zone) &&
+          // OS signed zone
+          !usesOSZone
         ) {
           return results.push({
             id,
@@ -218,13 +248,31 @@ export const save = async (
         });
       }
 
+      if (
+        order.params.zone === Sdk.SeaportBase.Addresses.OkxV16CancellationZone[config.chainId] &&
+        !isOkx
+      ) {
+        return results.push({
+          id,
+          status: "unsupported-zone",
+        });
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (isOkx && !(orderParams as any).okxOrderId) {
+        return results.push({
+          id,
+          status: "missing-okx-order-id",
+        });
+      }
+
       // Make sure no zero signatures are allowed
       if (order.params.signature && /^0x0+$/g.test(order.params.signature)) {
         order.params.signature = undefined;
       }
 
       // Check: order has a valid signature
-      if (metadata.fromOnChain || (isOpenSea && !order.params.signature)) {
+      if (metadata.fromOnChain || ((isOpenSea || isOkx) && !order.params.signature)) {
         // Skip if:
         // - the order was validated on-chain
         // - the order is coming from OpenSea / Okx and it doesn't have a signature
@@ -529,6 +577,9 @@ export const save = async (
         });
       }
 
+      // Validate the potential inclusion of an orderbook fee
+      await validateOrderbookFee("seaport-v1.6", feeBreakdown);
+
       // Handle: royalties on top
       const defaultRoyalties =
         info.side === "sell"
@@ -581,6 +632,8 @@ export const save = async (
 
       if (isOpenSea) {
         source = await sources.getOrInsert("opensea.io");
+      } else if (isOkx) {
+        source = await sources.getOrInsert("okx.com");
       }
 
       // If the order is native, override any default source
@@ -721,6 +774,40 @@ export const save = async (
         (order.params as any).partial = true;
       }
 
+      if (isOkx) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (order.params as any).okxOrderId = (orderParams as any).okxOrderId;
+      }
+
+      // Handle: off-chain cancellation via replacement
+      if (
+        order.params.zone === Sdk.SeaportBase.Addresses.ReservoirV16CancellationZone[config.chainId]
+      ) {
+        const replacedOrderResult = await idb.oneOrNone(
+          `
+            SELECT
+              orders.raw_data
+            FROM orders
+            WHERE orders.id = $/id/
+          `,
+          {
+            id: order.params.salt,
+          }
+        );
+        if (
+          replacedOrderResult &&
+          // Replacement is only possible if the replaced order is an off-chain cancellable one
+          replacedOrderResult.raw_data.zone ===
+            Sdk.SeaportBase.Addresses.ReservoirV16CancellationZone[config.chainId]
+        ) {
+          await offchainCancel.seaport.doReplacement({
+            newOrders: [order.params],
+            replacedOrders: [replacedOrderResult.raw_data],
+            orderKind: "seaport-v1.6",
+          });
+        }
+      }
+
       const validFrom = `date_trunc('seconds', to_timestamp(${startTime}))`;
       const validTo = endTime
         ? `date_trunc('seconds', to_timestamp(${order.params.endTime}))`
@@ -807,7 +894,8 @@ export const save = async (
           orderInfo.metadata,
           orderInfo.isReservoir,
           orderInfo.isOpenSea,
-          orderInfo.openSeaOrderParams
+          orderInfo.openSeaOrderParams,
+          orderInfo.isOkx
         )
       )
     )

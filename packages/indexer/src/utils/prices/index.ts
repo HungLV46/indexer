@@ -52,7 +52,7 @@ const getUpstreamUSDPrice = async (
           timeout: 10 * 1000,
         })
         .then((response) => response.data)
-        .catch((error) => {
+        .catch(async (error) => {
           if (config.coinGeckoWsApiKey && error.response?.status === 429) {
             logger.warn(
               "prices",
@@ -238,7 +238,7 @@ export const getAvailableUSDPrice = async (
 };
 
 const isTestnetCurrency = (currencyAddress: string) => {
-  if ([5, 11155111, 59140, 5001, 80001].includes(config.chainId)) {
+  if ([5, 11155111, 59140, 5001, 80001, 80002, 84532].includes(config.chainId)) {
     return [
       Sdk.Common.Addresses.Native[config.chainId],
       Sdk.Common.Addresses.WNative[config.chainId],
@@ -317,7 +317,7 @@ export const getUSDAndNativePrices = async (
     }
 
     const currency = await getCurrency(currencyAddress);
-    if (currency.decimals && currencyUSDPrice) {
+    if (currency.decimals !== undefined && currencyUSDPrice) {
       const currencyUnit = bn(10).pow(currency.decimals);
       usdPrice = bn(price).mul(currencyUSDPrice.value).div(currencyUnit).toString();
       if (nativeUSDPrice) {

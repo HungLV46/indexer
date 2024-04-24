@@ -27,8 +27,16 @@ const getOrderParams = (args: Result) => {
 };
 
 export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChainData) => {
+  const nftToKind: Map<string, "erc721" | "erc1155"> = new Map();
+
   // Handle the events
-  for (const { subKind, baseEventParams, log } of events) {
+  for (const { kind, subKind, baseEventParams, log } of events) {
+    if (kind === "erc721") {
+      nftToKind.set(baseEventParams.address.toLowerCase(), "erc721");
+    } else if (kind === "erc1155") {
+      nftToKind.set(baseEventParams.address.toLowerCase(), "erc1155");
+    }
+
     const eventData = getEventData([subKind])[0];
     switch (subKind) {
       case "zora-ask-filled": {
@@ -278,8 +286,10 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
         const comment = args["comment"];
         const quantity = args["quantity"].toString();
 
+        // One mint comment for every individual ERC721 quantity
+        const quantityForIteration = nftToKind.get(token) === "erc721" ? Number(quantity) : 1;
         if (subKind === "zora-custom-mint-comment") {
-          for (let i = 0; i < quantity; i++) {
+          for (let i = 0; i < quantityForIteration; i++) {
             onChainData.mintComments.push({
               token,
               quantity,
@@ -289,7 +299,7 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           }
         } else {
           const firstMintedTokenId = args["tokenId"];
-          for (let i = 0; i < Number(quantity); i++) {
+          for (let i = 0; i < quantityForIteration; i++) {
             const tokenId = firstMintedTokenId.add(i + 1);
             onChainData.mintComments.push({
               token,

@@ -1,5 +1,6 @@
 import { Interface } from "@ethersproject/abi";
 import { AddressZero } from "@ethersproject/constants";
+import { searchForCall } from "@georgeroman/evm-tx-simulator";
 import * as Sdk from "@reservoir0x/sdk";
 
 import { config } from "@/config/index";
@@ -15,6 +16,8 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
     to: string;
     txHash: string;
   }[] = [];
+
+  let tradeRank = 0;
 
   // Handle the events
   for (const { subKind, baseEventParams, log } of events) {
@@ -94,13 +97,76 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           toAddress = transfers[transfers.length - 1].to;
         }
 
+        const from = fromAddress;
+        const to = toAddress;
+
+        onChainData.nftTransferEvents.push({
+          kind: "cryptopunks",
+          from,
+          to,
+          tokenId,
+          amount: "1",
+          baseEventParams,
+        });
+
+        // Make sure to only handle the same data once per transaction
+        const contextPrefix = `${baseEventParams.txHash}-${baseEventParams.address}-${tokenId}`;
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${from}-sell-balance`,
+          maker: from,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
+        });
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${to}-sell-balance`,
+          maker: to,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
+        });
+
         // To get the correct price that the bid was settled at we have to
         // parse the transaction's calldata and extract the `minPrice` arg
         // where applicable (if the transaction was a bid acceptance one)
-        const tx = await utils.fetchTransaction(baseEventParams.txHash);
+        const txTrace = await utils.fetchTransactionTrace(baseEventParams.txHash);
+        if (!txTrace) {
+          // Skip any failed attempts to get the trace
+          break;
+        }
+
         const iface = new Interface(["function acceptBidForPunk(uint punkIndex, uint minPrice)"]);
+        const poolCallTrace = searchForCall(
+          txTrace.calls,
+          {
+            to: Sdk.CryptoPunks.Addresses.Exchange[config.chainId],
+            type: "CALL",
+            sigHashes: [iface.getSighash("acceptBidForPunk")],
+          },
+          tradeRank++
+        );
+        if (!poolCallTrace) {
+          break;
+        }
+
         try {
-          const result = iface.decodeFunctionData("acceptBidForPunk", tx.data);
+          const result = iface.decodeFunctionData("acceptBidForPunk", poolCallTrace.input);
           value = result.minPrice.toString();
         } catch {
           // Skip any errors
@@ -139,15 +205,6 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           // We must always have the native price
           break;
         }
-
-        onChainData.nftTransferEvents.push({
-          kind: "cryptopunks",
-          from: fromAddress,
-          to: toAddress,
-          tokenId,
-          amount: "1",
-          baseEventParams,
-        });
 
         onChainData.fillEventsOnChain.push({
           orderId,
@@ -209,6 +266,39 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           baseEventParams,
         });
 
+        // Make sure to only handle the same data once per transaction
+        const contextPrefix = `${baseEventParams.txHash}-${baseEventParams.address}-${tokenId}`;
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${from}-sell-balance`,
+          maker: from,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
+        });
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${to}-sell-balance`,
+          maker: to,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
+        });
+
         break;
       }
 
@@ -217,9 +307,11 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
         const to = args["to"].toLowerCase();
         const tokenId = args["punkIndex"].toString();
 
+        const from = AddressZero;
+
         onChainData.nftTransferEvents.push({
           kind: "cryptopunks",
-          from: AddressZero,
+          from,
           to,
           tokenId,
           amount: "1",
@@ -231,6 +323,39 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           tokenId,
           mintedTimestamp: baseEventParams.timestamp,
           context: "cryptopunks",
+        });
+
+        // Make sure to only handle the same data once per transaction
+        const contextPrefix = `${baseEventParams.txHash}-${baseEventParams.address}-${tokenId}`;
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${from}-sell-balance`,
+          maker: from,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
+        });
+
+        onChainData.makerInfos.push({
+          context: `${contextPrefix}-${to}-sell-balance`,
+          maker: to,
+          trigger: {
+            kind: "balance-change",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+          },
+          data: {
+            kind: "sell-balance",
+            contract: baseEventParams.address,
+            tokenId,
+          },
         });
 
         break;

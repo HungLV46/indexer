@@ -30,6 +30,7 @@ import {
   orderUpdatesByIdJob,
   OrderUpdatesByIdJobPayload,
 } from "@/jobs/order-updates/order-updates-by-id-job";
+import { isSharedContract } from "@/metadata/extend";
 
 export type OrderInfo = {
   kind?: "full";
@@ -861,7 +862,7 @@ const getCollectionFloorAskValue = async (
   contract: string,
   tokenId: number
 ): Promise<number | undefined> => {
-  if (getNetworkSettings().multiCollectionContracts.includes(contract)) {
+  if (isSharedContract(contract)) {
     const collection = await Collections.getByContractAndTokenId(contract, tokenId);
     return collection?.floorSellValue;
   } else {

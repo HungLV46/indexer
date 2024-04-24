@@ -547,56 +547,60 @@ export const getJoiOrderDepthObject = async (
   }
 };
 
-export const getJoiOrderObject = async (order: {
-  id: string;
-  kind: OrderKind;
-  side: "sell" | "buy";
-  status: string;
-  tokenSetId: string;
-  tokenSetSchemaHash: Buffer;
-  contract: Buffer;
-  contractKind: string;
-  maker: Buffer;
-  taker: Buffer;
-  prices: {
-    gross: {
-      amount: string;
-      nativeAmount?: string;
-      usdAmount?: string;
+export const getJoiOrderObject = async (
+  order: {
+    id: string;
+    kind: OrderKind;
+    side: "sell" | "buy";
+    status: string;
+    tokenSetId: string;
+    tokenSetSchemaHash: Buffer;
+    contract: Buffer;
+    contractKind: string;
+    maker: Buffer;
+    taker: Buffer;
+    prices: {
+      gross: {
+        amount: string;
+        nativeAmount?: string;
+        usdAmount?: string;
+      };
+      net?: {
+        amount: string;
+        nativeAmount?: string;
+        usdAmount?: string;
+      };
+      currency: Buffer;
     };
-    net?: {
-      amount: string;
-      nativeAmount?: string;
-      usdAmount?: string;
-    };
-    currency: Buffer;
-  };
-  validFrom: string;
-  validUntil: string;
-  quantityFilled: string;
-  quantityRemaining: string;
-  criteria: string | null;
-  sourceIdInt: number;
-  feeBps: number;
-  feeBreakdown: any;
-  expiration: string;
-  isReservoir: boolean;
-  createdAt: number;
-  updatedAt: number;
-  originatedAt: number | null;
-  includeRawData: boolean;
-  rawData:
-    | Sdk.SeaportBase.Types.OrderComponents
-    | Sdk.Sudoswap.OrderParams
-    | Sdk.Nftx.Types.OrderParams;
-  normalizeRoyalties: boolean;
-  missingRoyalties: any;
-  includeDynamicPricing?: boolean;
-  includeDepth?: boolean;
-  displayCurrency?: string;
-  dynamic?: boolean;
-  token?: string;
-}) => {
+    validFrom: string;
+    validUntil: string;
+    quantityFilled: string;
+    quantityRemaining: string;
+    criteria: string | null;
+    sourceIdInt: number;
+    feeBps: number;
+    feeBreakdown: any;
+    expiration: string;
+    isReservoir: boolean;
+    createdAt: number;
+    updatedAt: number;
+    originatedAt: number | null;
+    rawData:
+      | Sdk.SeaportBase.Types.OrderComponents
+      | Sdk.Sudoswap.OrderParams
+      | Sdk.Nftx.Types.OrderParams;
+    missingRoyalties: any;
+    dynamic?: boolean;
+    token?: string;
+  },
+  opts?: {
+    normalizeRoyalties: boolean;
+    includeRawData: boolean;
+    includeDynamicPricing?: boolean;
+    includeDepth?: boolean;
+    displayCurrency?: string;
+  }
+) => {
   const sources = await Sources.getInstance();
   let source: SourcesEntity | undefined;
   if (order.tokenSetId?.startsWith("token")) {
@@ -616,7 +620,7 @@ export const getJoiOrderObject = async (order: {
   }));
 
   let feeBps = Number(order.feeBps);
-  if (order.normalizeRoyalties && order.missingRoyalties) {
+  if (opts?.normalizeRoyalties && order.missingRoyalties) {
     for (let i = 0; i < order.missingRoyalties.length; i++) {
       const index: number = order.feeBreakdown.findIndex(
         (fee: { recipient: string }) => fee.recipient === order.missingRoyalties[i].recipient
@@ -668,17 +672,17 @@ export const getJoiOrderObject = async (order: {
           : undefined,
       },
       currency,
-      order.displayCurrency
+      opts?.displayCurrency
     ),
     validFrom: Math.floor(Number(order.validFrom)),
     validUntil: Math.floor(Number(order.validUntil)),
     quantityFilled: Number(order.quantityFilled),
     quantityRemaining: Number(order.quantityRemaining),
-    dynamicPricing: order.includeDynamicPricing
+    dynamicPricing: opts?.includeDynamicPricing
       ? await getJoiDynamicPricingObject(
           Boolean(order.dynamic),
           order.kind,
-          order.normalizeRoyalties,
+          opts?.normalizeRoyalties || false,
           order.rawData,
           currency,
           order.missingRoyalties ? order.missingRoyalties : undefined
@@ -697,11 +701,11 @@ export const getJoiOrderObject = async (order: {
     createdAt: new Date(order.createdAt * 1000).toISOString(),
     updatedAt: new Date(order.updatedAt * 1000).toISOString(),
     originatedAt: order.originatedAt ? new Date(order.originatedAt).toISOString() : null,
-    rawData: order.includeRawData ? order.rawData : undefined,
-    isNativeOffChainCancellable: order.includeRawData
+    rawData: opts?.includeRawData ? order.rawData : undefined,
+    isNativeOffChainCancellable: opts?.includeRawData
       ? isOrderNativeOffChainCancellable(order.rawData)
       : undefined,
-    depth: order.includeDepth
+    depth: opts?.includeDepth
       ? await getJoiOrderDepthObject(
           order.kind,
           order.prices.gross.amount,
@@ -709,7 +713,7 @@ export const getJoiOrderObject = async (order: {
           Number(order.quantityRemaining),
           order.rawData,
           order.side === "buy" ? feeBps : undefined,
-          order.displayCurrency
+          opts?.displayCurrency
         )
       : undefined,
   };

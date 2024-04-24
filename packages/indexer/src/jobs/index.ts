@@ -58,7 +58,7 @@ import { tokenFloorQueueJob } from "@/jobs/token-updates/token-floor-queue-job";
 import { fetchCollectionMetadataJob } from "@/jobs/token-updates/fetch-collection-metadata-job";
 import { handleNewBuyOrderJob } from "@/jobs/update-attribute/handle-new-buy-order-job";
 import { handleNewSellOrderJob } from "@/jobs/update-attribute/handle-new-sell-order-job";
-import { resyncAttributeCacheJob } from "@/jobs/update-attribute/resync-attribute-cache-job";
+import { resyncTokenAttributesCacheJob } from "@/jobs/update-attribute/resync-token-attributes-cache-job";
 import { resyncAttributeCollectionJob } from "@/jobs/update-attribute/resync-attribute-collection-job";
 import { resyncAttributeFloorSellJob } from "@/jobs/update-attribute/resync-attribute-floor-sell-job";
 import { resyncAttributeKeyCountsJob } from "@/jobs/update-attribute/resync-attribute-key-counts-job";
@@ -108,6 +108,7 @@ import { flagStatusUpdateJob } from "@/jobs/flag-status/flag-status-update-job";
 import { tokenFlagStatusSyncJob } from "@/jobs/flag-status/token-flag-status-sync-job";
 import { collectionSlugFlagStatusSyncJob } from "@/jobs/flag-status/collection-slug-flag-status-sync-job";
 import { contractFlagStatusSyncJob } from "@/jobs/flag-status/contract-flag-status-sync-job";
+import { backfillDeleteExpiredBidsElasticsearchJob } from "@/jobs/elasticsearch/activities/backfill/backfill-delete-expired-bids-elasticsearch-job";
 
 import { metadataIndexFetchJob } from "@/jobs/metadata-index/metadata-fetch-job";
 import { metadataIndexProcessJob } from "@/jobs/metadata-index/metadata-process-job";
@@ -193,6 +194,10 @@ import { backfillTokensWithMissingCollectionJob } from "@/jobs/backfill/backfill
 import { recalcOnSaleCountQueueJob } from "@/jobs/collection-updates/recalc-on-sale-count-queue-job";
 import { burnedTokenJob } from "@/jobs/token-updates/burned-token-job";
 import { publishEventToKafkaStreamJob } from "@/jobs/websocket-events/publish-event-to-kafka-stream-job";
+import { backfillInvalidatedPPV2OrdersJob } from "@/jobs/backfill/backfill-invalidated-ppv2-orders";
+import { resyncAttributeCacheJob } from "@/jobs/update-attribute/resync-attribute-cache-job";
+import { refreshDynamicTokenSetJob } from "@/jobs/token-set-updates/refresh-dynamic-token-set-job";
+import { fixOwnershipJob } from "@/jobs/backfill/fix-ownership";
 
 export const allJobQueues = [
   backfillWrongNftBalances.queue,
@@ -226,6 +231,7 @@ export class RabbitMqJobsConsumer {
    */
   public static getQueues(): AbstractRabbitMqJobHandler[] {
     return [
+      resyncAttributeCacheJob,
       tokenReclacSupplyJob,
       tokenRefreshCacheJob,
       recalcOwnerCountQueueJob,
@@ -236,7 +242,7 @@ export class RabbitMqJobsConsumer {
       fetchCollectionMetadataJob,
       handleNewBuyOrderJob,
       handleNewSellOrderJob,
-      resyncAttributeCacheJob,
+      resyncTokenAttributesCacheJob,
       resyncAttributeCollectionJob,
       resyncAttributeFloorSellJob,
       resyncAttributeKeyCountsJob,
@@ -368,6 +374,11 @@ export class RabbitMqJobsConsumer {
       recalcOnSaleCountQueueJob,
       burnedTokenJob,
       publishEventToKafkaStreamJob,
+      backfillInvalidatedPPV2OrdersJob,
+      deleteArchivedExpiredBidActivitiesJob,
+      backfillDeleteExpiredBidsElasticsearchJob,
+      refreshDynamicTokenSetJob,
+      fixOwnershipJob,
     ];
   }
 

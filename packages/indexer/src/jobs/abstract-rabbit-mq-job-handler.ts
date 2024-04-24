@@ -83,10 +83,12 @@ export abstract class AbstractRabbitMqJobHandler {
     try {
       let processResult;
       if (this.getTimeout()) {
+        let timeout;
+
         processResult = await Promise.race([
           this.process(this.rabbitMqMessage.payload),
           new Promise((resolve, reject) => {
-            setTimeout(
+            timeout = setTimeout(
               () =>
                 reject(
                   new Error(
@@ -99,6 +101,10 @@ export abstract class AbstractRabbitMqJobHandler {
             );
           }),
         ]);
+
+        if (timeout) {
+          clearTimeout(timeout);
+        }
       } else {
         processResult = await this.process(this.rabbitMqMessage.payload); // Process the message
       }

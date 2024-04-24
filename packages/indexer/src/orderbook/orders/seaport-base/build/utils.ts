@@ -2,6 +2,8 @@ import * as Sdk from "@reservoir0x/sdk";
 import { getSourceHash } from "@reservoir0x/sdk/dist/utils";
 
 import { bn } from "@/common/utils";
+import { config } from "@/config/index";
+import * as erc721c from "@/utils/erc721c";
 
 export interface BaseOrderBuildOptions {
   maker: string;
@@ -40,4 +42,20 @@ export const padSourceToSalt = (salt: string, source?: string) => {
       : getSourceHash(source) + getSourceHash("reservoir.tools");
   const saltPaddedTo32Bytes = bn(salt).toHexString().slice(2).padStart(64, "0");
   return bn(`0x${prefix}${saltPaddedTo32Bytes.slice(prefix.length)}`).toString();
+};
+
+export const contractUsesOSTransferValidator = async (contract: string) => {
+  const erc721cConfigV2 = await erc721c.v2.getConfigFromDb(contract);
+
+  const osCustomTransferValidator =
+    Sdk.SeaportBase.Addresses.OpenSeaCustomTransferValidator[config.chainId];
+  if (
+    osCustomTransferValidator &&
+    erc721cConfigV2 &&
+    erc721cConfigV2.transferValidator === osCustomTransferValidator
+  ) {
+    return true;
+  }
+
+  return false;
 };

@@ -257,44 +257,48 @@ export const getOrdersBidsV5Options: RouteOptions = {
         return {
           orders: await Promise.all(
             result.map((r) =>
-              getJoiOrderObject({
-                id: `blur-collection-bid:${query.maker}:${r.contract}:${r.price}`,
-                kind: "blur",
-                side: "buy",
-                status: "active",
-                tokenSetId: `contract:${r.contract}`,
-                tokenSetSchemaHash: toBuffer(HashZero),
-                contract: toBuffer(r.contract),
-                contractKind: r.contract_kind,
-                maker: toBuffer(query.maker),
-                taker: toBuffer(AddressZero),
-                prices: {
-                  gross: {
-                    amount: parseEther(r.price).toString(),
-                    nativeAmount: parseEther(r.price).toString(),
+              getJoiOrderObject(
+                {
+                  id: `blur-collection-bid:${query.maker}:${r.contract}:${r.price}`,
+                  kind: "blur",
+                  side: "buy",
+                  status: "active",
+                  tokenSetId: `contract:${r.contract}`,
+                  tokenSetSchemaHash: toBuffer(HashZero),
+                  contract: toBuffer(r.contract),
+                  contractKind: r.contract_kind,
+                  maker: toBuffer(query.maker),
+                  taker: toBuffer(AddressZero),
+                  prices: {
+                    gross: {
+                      amount: parseEther(r.price).toString(),
+                      nativeAmount: parseEther(r.price).toString(),
+                    },
+                    currency: toBuffer(Sdk.Blur.Addresses.Beth[config.chainId]),
                   },
-                  currency: toBuffer(Sdk.Blur.Addresses.Beth[config.chainId]),
+                  validFrom: now().toString(),
+                  validUntil: "0",
+                  quantityFilled: "0",
+                  quantityRemaining: r.quantity.toString(),
+                  criteria: null,
+                  sourceIdInt: source!.id,
+                  feeBps: 0,
+                  feeBreakdown: [],
+                  expiration: "0",
+                  isReservoir: false,
+                  createdAt: now(),
+                  updatedAt: now(),
+                  originatedAt: now(),
+                  rawData: {} as any,
+                  missingRoyalties: [],
                 },
-                validFrom: now().toString(),
-                validUntil: "0",
-                quantityFilled: "0",
-                quantityRemaining: r.quantity.toString(),
-                criteria: null,
-                sourceIdInt: source!.id,
-                feeBps: 0,
-                feeBreakdown: [],
-                expiration: "0",
-                isReservoir: false,
-                createdAt: now(),
-                updatedAt: now(),
-                originatedAt: now(),
-                includeRawData: false,
-                rawData: {} as any,
-                normalizeRoyalties: false,
-                missingRoyalties: [],
-                includeDepth: false,
-                displayCurrency: query.displayCurrency,
-              })
+                {
+                  includeRawData: false,
+                  normalizeRoyalties: false,
+                  includeDepth: false,
+                  displayCurrency: query.displayCurrency,
+                }
+              )
             )
           ),
           continuation: null,
@@ -657,51 +661,55 @@ export const getOrdersBidsV5Options: RouteOptions = {
       }
 
       const result = rawResult.map(async (r) =>
-        getJoiOrderObject({
-          id: r.id,
-          kind: r.kind,
-          side: r.side,
-          status: r.status,
-          tokenSetId: r.token_set_id,
-          tokenSetSchemaHash: r.token_set_schema_hash,
-          contract: r.contract,
-          contractKind: r.contract_kind,
-          maker: r.maker,
-          taker: r.taker,
-          prices: {
-            gross: {
-              amount: r.currency_price ?? r.price,
-              nativeAmount: r.price,
+        getJoiOrderObject(
+          {
+            id: r.id,
+            kind: r.kind,
+            side: r.side,
+            status: r.status,
+            tokenSetId: r.token_set_id,
+            tokenSetSchemaHash: r.token_set_schema_hash,
+            contract: r.contract,
+            contractKind: r.contract_kind,
+            maker: r.maker,
+            taker: r.taker,
+            prices: {
+              gross: {
+                amount: r.currency_price ?? r.price,
+                nativeAmount: r.price,
+              },
+              net: {
+                amount: query.normalizeRoyalties
+                  ? r.currency_normalized_value ?? r.value
+                  : r.currency_value ?? r.value,
+                nativeAmount: query.normalizeRoyalties ? r.normalized_value ?? r.value : r.value,
+              },
+              currency: r.currency,
             },
-            net: {
-              amount: query.normalizeRoyalties
-                ? r.currency_normalized_value ?? r.value
-                : r.currency_value ?? r.value,
-              nativeAmount: query.normalizeRoyalties ? r.normalized_value ?? r.value : r.value,
-            },
-            currency: r.currency,
+            validFrom: r.valid_from,
+            validUntil: r.valid_until,
+            quantityFilled: r.quantity_filled,
+            quantityRemaining: r.quantity_remaining,
+            criteria: r.criteria,
+            sourceIdInt: r.source_id_int,
+            feeBps: r.fee_bps,
+            feeBreakdown: r.fee_bps === 0 ? [] : r.fee_breakdown,
+            expiration: r.expiration,
+            isReservoir: r.is_reservoir,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+            originatedAt: r.originated_at,
+            rawData: r.raw_data,
+            missingRoyalties: r.missing_royalties,
+            token: query.token,
           },
-          validFrom: r.valid_from,
-          validUntil: r.valid_until,
-          quantityFilled: r.quantity_filled,
-          quantityRemaining: r.quantity_remaining,
-          criteria: r.criteria,
-          sourceIdInt: r.source_id_int,
-          feeBps: r.fee_bps,
-          feeBreakdown: r.fee_bps === 0 ? [] : r.fee_breakdown,
-          expiration: r.expiration,
-          isReservoir: r.is_reservoir,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          originatedAt: r.originated_at,
-          includeRawData: query.includeRawData,
-          rawData: r.raw_data,
-          normalizeRoyalties: query.normalizeRoyalties,
-          missingRoyalties: r.missing_royalties,
-          includeDepth: query.includeDepth,
-          displayCurrency: query.displayCurrency,
-          token: query.token,
-        })
+          {
+            includeRawData: query.includeRawData,
+            includeDepth: query.includeDepth,
+            normalizeRoyalties: query.normalizeRoyalties,
+            displayCurrency: query.displayCurrency,
+          }
+        )
       );
 
       return {

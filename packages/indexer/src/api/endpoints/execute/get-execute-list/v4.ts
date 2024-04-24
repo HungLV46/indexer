@@ -13,6 +13,7 @@ import { regex } from "@/common/utils";
 import { config } from "@/config/index";
 import * as commonHelpers from "@/orderbook/orders/common/helpers";
 import { ExecutionsBuffer } from "@/utils/executions";
+import * as orderbookFee from "@/utils/orderbook-fee";
 
 // LooksRare
 import * as looksRareV2SellToken from "@/orderbook/orders/looks-rare-v2/build/sell/token";
@@ -231,6 +232,9 @@ export const getExecuteListV4Options: RouteOptions = {
           params.fee.push(fee);
           params.feeRecipient.push(feeRecipient);
         }
+
+        // Handle orderbook fee
+        await orderbookFee.attachOrderbookFee(params, request.headers["x-api-key"]);
 
         switch (params.orderKind) {
           case "zeroex-v4": {

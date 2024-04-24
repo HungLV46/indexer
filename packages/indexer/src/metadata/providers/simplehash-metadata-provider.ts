@@ -111,12 +111,12 @@ export class SimplehashMetadataProvider extends AbstractBaseMetadataProvider {
     ) {
       imageUrl = metadata.previews.image_medium_url;
 
-      logger.info(
-        "simplehash-fetcher",
-        JSON.stringify({
-          message: `_parseToken. Detected GIF over 1MB. contract=${metadata.contract_address}, tokenId=${metadata.token_id}, imageUrl=${imageUrl}`,
-        })
-      );
+      // logger.info(
+      //   "simplehash-fetcher",
+      //   JSON.stringify({
+      //     message: `_parseToken. Detected GIF over 1MB. contract=${metadata.contract_address}, tokenId=${metadata.token_id}, imageUrl=${imageUrl}`,
+      //   })
+      // );
     }
 
     return {
@@ -126,7 +126,7 @@ export class SimplehashMetadataProvider extends AbstractBaseMetadataProvider {
       collection: _.toLower(metadata.contract_address),
       flagged: null,
       slug:
-        metadata.collection.marketplace_pages?.filter(
+        metadata.collection?.marketplace_pages?.filter(
           (market: any) => market.marketplace_id === "opensea"
         )[0]?.marketplace_collection_id ?? undefined,
       // Token descriptions are a waste of space for most collections we deal with
@@ -140,7 +140,7 @@ export class SimplehashMetadataProvider extends AbstractBaseMetadataProvider {
       imageProperties: metadata.image_properties,
       mediaUrl: metadata.video_url ?? metadata.audio_url ?? media,
       attributes: (attributes || []).map((trait: any) => ({
-        key: trait.trait_type ?? "property",
+        key: trait.trait_type || "property",
         value: trait.value,
         kind: typeof trait.value == "number" ? "number" : "string",
         rank: 1,
@@ -192,6 +192,10 @@ export class SimplehashMetadataProvider extends AbstractBaseMetadataProvider {
 
     if (network == "mumbai") {
       return "polygon-mumbai";
+    }
+
+    if (network == "amoy") {
+      return "polygon-amoy";
     }
 
     if (network == "sepolia") {

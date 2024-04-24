@@ -1,7 +1,6 @@
 import "@/jobs/index";
 import "@/jobs/cdc/index";
 import "@/config/polyfills";
-import "@/pubsub/index";
 import "@/websockets/index";
 
 import * as Sdk from "@reservoir0x/sdk";
@@ -18,6 +17,7 @@ import { FeeRecipients } from "@/models/fee-recipients";
 import { Sources } from "@/models/sources";
 import { redis } from "@/common/redis";
 import * as kafkaStreamProducer from "@/common/kafka-stream-producer";
+import { AllChainsPubSub, PubSub } from "@/pubsub/index";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 process.on("unhandledRejection", (error: any) => {
@@ -34,6 +34,9 @@ const setup = async () => {
   if (Number(process.env.LOCAL_TESTING)) {
     return;
   }
+
+  await PubSub.subscribe();
+  await AllChainsPubSub.subscribe();
 
   if (config.doKafkaStreamWork) {
     await kafkaStreamProducer.start();

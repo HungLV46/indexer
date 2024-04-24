@@ -11,7 +11,7 @@ import * as utils from "@/events-sync/utils";
 import { getUSDAndNativePrices } from "@/utils/prices";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const handleEvents = async (_events: EnhancedEvent[], onChainData: OnChainData) => {
+export const handleEvents = async (_events: EnhancedEvent[], _onChainData: OnChainData) => {
   const nftTransferEvents: es.nftTransfers.Event[] = [];
 
   // re-sort

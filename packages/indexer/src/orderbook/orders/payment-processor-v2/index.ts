@@ -18,6 +18,7 @@ import { DbOrder, OrderMetadata, generateSchemaHash } from "@/orderbook/orders/u
 import * as tokenSet from "@/orderbook/token-sets";
 import * as erc721c from "@/utils/erc721c";
 import { checkMarketplaceIsFiltered } from "@/utils/marketplace-blacklists";
+import { validateOrderbookFee } from "@/utils/orderbook-fee";
 import * as paymentProcessorV2 from "@/utils/payment-processor-v2";
 import { getUSDAndNativePrices } from "@/utils/prices";
 import { cosigner, saveOffChainCancellations } from "@/utils/offchain-cancel";
@@ -299,8 +300,9 @@ export const save = async (orderInfos: OrderInfo[]): Promise<SaveResult[]> => {
 
       // Handle: security level 4 and 6 EOA verification
       if (side === "buy") {
-        const configV1 = await erc721c.v1.getConfig(order.params.tokenAddress);
-        const configV2 = await erc721c.v2.getConfig(order.params.tokenAddress);
+        const configV1 = await erc721c.v1.getConfigFromDb(order.params.tokenAddress);
+        const configV2 = await erc721c.v2.getConfigFromDb(order.params.tokenAddress);
+
         if (
           (configV1 && [4, 6].includes(configV1.transferSecurityLevel)) ||
           (configV2 && [6, 8].includes(configV2.transferSecurityLevel))
@@ -311,6 +313,7 @@ export const save = async (orderInfos: OrderInfo[]): Promise<SaveResult[]> => {
             transferValidator,
             order.params.sellerOrBuyer
           );
+
           if (!isVerified) {
             return results.push({
               id,
@@ -345,6 +348,9 @@ export const save = async (orderInfos: OrderInfo[]): Promise<SaveResult[]> => {
           bps: Number(order.params.marketplaceFeeNumerator),
         });
       }
+
+      // Validate the potential inclusion of an orderbook fee
+      await validateOrderbookFee("payment-processor-v2", feeBreakdown);
 
       const feeBps = feeBreakdown.map(({ bps }) => bps).reduce((a, b) => Number(a) + Number(b), 0);
 

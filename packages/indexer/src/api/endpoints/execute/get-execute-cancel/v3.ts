@@ -373,7 +373,10 @@ export const getExecuteCancelV3Options: RouteOptions = {
               status: "incomplete",
               orderIds,
               data: {
-                sign: offchainCancel.seaport.generateOffChainCancellationSignatureData(orderIds),
+                sign: offchainCancel.seaport.generateOffChainCancellationSignatureData(
+                  orderIds,
+                  kind as offchainCancel.seaport.OffChainCancellableOrderKind
+                ),
                 post: {
                   endpoint: "/execute/cancel-signature/v1",
                   method: "POST",
@@ -585,6 +588,10 @@ export const getExecuteCancelV3Options: RouteOptions = {
 
                   return { steps };
                 }
+              } else {
+                steps[0].items.push({
+                  status: "complete",
+                });
               }
 
               for (const order of data.onchainCancellable) {
@@ -634,7 +641,9 @@ export const getExecuteCancelV3Options: RouteOptions = {
         steps,
       };
     } catch (error) {
-      logger.error(`get-execute-cancel-${version}-handler`, `Handler failure: ${error}`);
+      if (!Boom.isBoom(error)) {
+        logger.error(`get-execute-cancel-${version}-handler`, `Handler failure: ${error}`);
+      }
       throw error;
     }
   },

@@ -5,6 +5,9 @@ import { logger } from "@/common/logger";
 import { CollectionMetadata, TokenMetadata } from "@/metadata/types";
 import axios from "axios";
 
+// This param indicate this is a shared contract logic that handles multiple collections sharing the same contract
+export const isSharedContract = true;
+
 function getProjectID(tokenId: number) {
   const tokenStr = tokenId.toString();
   if (tokenStr.length === 5) {

@@ -30,8 +30,10 @@ import {
 } from "@/orderbook/orders/seaport-base/utils";
 import * as tokenSet from "@/orderbook/token-sets";
 import { getCurrency } from "@/utils/currencies";
+import * as erc721c from "@/utils/erc721c";
 import { checkMarketplaceIsFiltered } from "@/utils/marketplace-blacklists";
 import * as offchainCancel from "@/utils/offchain-cancel";
+import { validateOrderbookFee } from "@/utils/orderbook-fee";
 import { getUSDAndNativePrices } from "@/utils/prices";
 import * as royalties from "@/utils/royalties";
 import { isOpen } from "@/utils/seaport-conduits";
@@ -172,12 +174,26 @@ export const save = async (
       const isFiltered = await checkMarketplaceIsFiltered(info.contract, [
         new Sdk.SeaportV15.Exchange(config.chainId).deriveConduit(order.params.conduitKey),
       ]);
-
       if (isFiltered) {
         return results.push({
           id,
           status: "filtered",
         });
+      }
+
+      const erc721cConfigV2 = await erc721c.v2.getConfigFromDb(info.contract);
+      if (erc721cConfigV2) {
+        const osCustomTransferValidator =
+          Sdk.SeaportBase.Addresses.OpenSeaCustomTransferValidator[config.chainId];
+        if (
+          osCustomTransferValidator &&
+          erc721cConfigV2.transferValidator === osCustomTransferValidator
+        ) {
+          return results.push({
+            id,
+            status: "filtered",
+          });
+        }
       }
 
       // Check: buy order has a supported payment token
@@ -579,6 +595,9 @@ export const save = async (
           status: "fees-too-high",
         });
       }
+
+      // Validate the potential inclusion of an orderbook fee
+      await validateOrderbookFee("seaport-v1.5", feeBreakdown);
 
       // Handle: royalties on top
       const defaultRoyalties =

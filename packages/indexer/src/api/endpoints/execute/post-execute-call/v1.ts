@@ -15,10 +15,10 @@ const version = "v1";
 
 export const postExecuteCallV1Options: RouteOptions = {
   description: "Make arbitrary same-chain and cross-chain calls via solver",
-  tags: ["api", "Misc"],
+  tags: ["api", "x-deprecated"],
   plugins: {
     "hapi-swagger": {
-      order: 50,
+      deprecated: true,
     },
   },
   validate: {
@@ -193,6 +193,17 @@ export const postExecuteCallV1Options: RouteOptions = {
           },
         },
       });
+
+      logger.info(
+        "debug",
+        JSON.stringify({
+          requestId,
+          shortRequestId,
+          cost: cost.toString(),
+          price,
+          relayerFee,
+        })
+      );
 
       return {
         steps,

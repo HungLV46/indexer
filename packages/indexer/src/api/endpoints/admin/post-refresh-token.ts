@@ -11,7 +11,7 @@ import { Collections } from "@/models/collections";
 import { Tokens } from "@/models/tokens";
 import { OpenseaIndexerApi } from "@/utils/opensea-indexer-api";
 import { tokenRefreshCacheJob } from "@/jobs/token-updates/token-refresh-cache-job";
-import { resyncAttributeCacheJob } from "@/jobs/update-attribute/resync-attribute-cache-job";
+import { resyncTokenAttributesCacheJob } from "@/jobs/update-attribute/resync-token-attributes-cache-job";
 import { tokenReclacSupplyJob } from "@/jobs/token-updates/token-reclac-supply-job";
 import { metadataIndexFetchJob } from "@/jobs/metadata-index/metadata-fetch-job";
 import { orderFixesJob } from "@/jobs/order-fixes/order-fixes-job";
@@ -95,7 +95,7 @@ export const postRefreshTokenOptions: RouteOptions = {
       await orderFixesJob.addToQueue([{ by: "token", data: { token: payload.token } }]);
 
       // Revalidate the token attribute cache
-      await resyncAttributeCacheJob.addToQueue({ contract, tokenId }, 0);
+      await resyncTokenAttributesCacheJob.addToQueue({ contract, tokenId }, 0);
 
       // Refresh the token floor sell and top bid
       await tokenRefreshCacheJob.addToQueue({ contract, tokenId, checkTopBid: true });

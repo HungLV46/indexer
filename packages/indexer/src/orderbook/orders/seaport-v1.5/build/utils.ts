@@ -1,6 +1,6 @@
 import { AddressZero, HashZero } from "@ethersproject/constants";
 import * as Sdk from "@reservoir0x/sdk";
-import { getRandomBytes } from "@reservoir0x/sdk/dist/utils";
+import { Network, getRandomBytes } from "@reservoir0x/sdk/dist/utils";
 
 import { redb } from "@/common/db";
 import { baseProvider } from "@/common/provider";
@@ -23,7 +23,9 @@ export const getConduitKeyWithDefault = (conduitKey?: string) => {
   // - no conduit (exchange address)
   return (
     conduitKey ??
-    Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId] ??
+    (config.chainId === Network.Blast
+      ? undefined
+      : Sdk.SeaportBase.Addresses.OpenseaConduitKey[config.chainId]) ??
     Sdk.SeaportBase.Addresses.ReservoirConduitKey[config.chainId] ??
     HashZero
   );

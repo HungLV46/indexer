@@ -78,8 +78,8 @@ export class FeeRecipients {
   }
 
   public static async syncFeeRecipients() {
-    // Make surce the sources are loaded
-    Sources.getInstance();
+    // Make source the sources are loaded
+    await Sources.getInstance();
     await Sources.syncSources();
     await Sources.forceDataReload();
 
@@ -150,7 +150,14 @@ export class FeeRecipients {
     );
 
     if (entity) {
-      logger.warn("fee-recipients", `address ${address} already exist with kind ${entity.kind}`);
+      logger.warn(
+        "fee-recipients",
+        `address ${address} already exist recipient=${JSON.stringify(entity)} stack=${
+          new Error().stack
+        }`
+      );
+
+      return new FeeRecipientEntity(entity);
     }
 
     // Create the new fee recipient

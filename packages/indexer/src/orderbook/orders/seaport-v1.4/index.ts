@@ -32,6 +32,7 @@ import {
   OrderUpdatesByIdJobPayload,
 } from "@/jobs/order-updates/order-updates-by-id-job";
 import { orderbookOrdersJob } from "@/jobs/orderbook/orderbook-orders-job";
+import { isSharedContract } from "@/metadata/extend";
 
 export type OrderInfo = {
   orderParams: Sdk.SeaportBase.Types.OrderComponents;
@@ -653,17 +654,6 @@ export const save = async (
             Number(tokenId)
           );
 
-          logger.debug(
-            "orders-seaport-v1.4-save",
-            JSON.stringify({
-              topic: "validateBidValue",
-              collectionTopBidValue,
-              contract: info.contract,
-              tokenId,
-              value: value.toString(),
-            })
-          );
-
           if (collectionTopBidValue) {
             if (Number(value.toString()) <= collectionTopBidValue) {
               return results.push({
@@ -960,7 +950,7 @@ const getCollectionFloorAskValue = async (
   contract: string,
   tokenId: number
 ): Promise<number | undefined> => {
-  if (getNetworkSettings().multiCollectionContracts.includes(contract)) {
+  if (isSharedContract(contract)) {
     const collection = await Collections.getByContractAndTokenId(contract, tokenId);
     return collection?.floorSellValue;
   } else {

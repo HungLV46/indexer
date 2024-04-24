@@ -40,7 +40,7 @@ export const getUserTokensV10Options: RouteOptions = {
   description: "User Tokens",
   notes:
     "Get tokens held by a user, along with ownership information such as associated orders and date acquired.",
-  tags: ["api", "Tokens"],
+  tags: ["api", "Accounts"],
   plugins: {
     "hapi-swagger": {
       order: 9,
@@ -800,7 +800,7 @@ export const getUserTokensV10Options: RouteOptions = {
                top_bid_id, top_bid_price, top_bid_value, top_bid_currency, top_bid_currency_price, top_bid_currency_value, top_bid_source_id_int,
                o.currency AS collection_floor_sell_currency, o.currency_price AS collection_floor_sell_currency_price, o.currency_value AS collection_floor_sell_currency_value, o.token_set_id AS collection_floor_sell_token_set_id,
                c.name as collection_name, c.token_count as collection_token_count, con.kind, con.symbol, extract(epoch from con.deployed_at) AS contract_deployed_at, c.metadata, c.royalties, (c.metadata ->> 'safelistRequestStatus')::TEXT AS "opensea_verification_status",
-               c.royalties_bps, ot.kind AS ownership_floor_sell_kind, c.slug, c.is_spam AS c_is_spam, c.nsfw_status AS c_nsfw_status, c.metadata_disabled AS c_metadata_disabled, t_metadata_disabled,
+               c.royalties_bps, ot.kind AS ownership_floor_sell_kind, c.slug, c.is_spam AS c_is_spam, c.nsfw_status AS c_nsfw_status, (c.metadata ->> 'imageUrl')::TEXT AS collection_image, c.metadata_disabled AS c_metadata_disabled, t_metadata_disabled,
                c.image_version AS "collection_image_version",
                ot.value as ownership_floor_sell_value, ot.currency_value as ownership_floor_sell_currency_value, ot.currency as ownership_floor_sell_currency, ot.maker as ownership_floor_sell_maker,
                 date_part('epoch', lower(ot.valid_between)) AS "ownership_floor_sell_valid_from",
@@ -1094,7 +1094,7 @@ export const getUserTokensV10Options: RouteOptions = {
                   ? new Date(r.contract_deployed_at * 1000).toISOString()
                   : null,
                 imageUrl: Assets.getResizedImageUrl(
-                  r.image,
+                  r.collection_image,
                   ImageSize.small,
                   r.collection_image_version
                 ),

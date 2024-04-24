@@ -280,6 +280,9 @@ export type MintDetails = {
   token: string;
   quantity: number;
   comment?: string;
+  // Only relevant for ERC20 mints
+  currency?: string;
+  price?: string;
 };
 
 export type FillMintsResult = {
@@ -287,6 +290,7 @@ export type FillMintsResult = {
     txData: TxData;
     txTags?: TxTags;
     orderIds: string[];
+    approvals: FTApproval[];
   }[];
   success: { [orderId: string]: boolean };
 };

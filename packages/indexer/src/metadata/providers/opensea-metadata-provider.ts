@@ -328,7 +328,7 @@ class OpenseaMetadataProvider extends AbstractBaseMetadataProvider {
       metadataOriginalUrl: metadata.metadata_url,
       mediaUrl: metadata.animation_url,
       attributes: (metadata.traits || []).map((trait: any) => ({
-        key: trait.trait_type ?? "property",
+        key: trait.trait_type || "property",
         value: trait.value,
         kind: typeof trait.value == "number" ? "number" : "string",
         rank: 1,
@@ -481,6 +481,7 @@ class OpenseaMetadataProvider extends AbstractBaseMetadataProvider {
       case 5:
       case 11155111:
       case 80001:
+      case 80002:
         return true;
     }
 

@@ -102,6 +102,9 @@ export const getExecuteBuyV7Options: RouteOptions = {
               .description(
                 "Optionally specify a particular fill method. Only relevant when filling via `collection`."
               ),
+            preferredMintStage: Joi.string()
+              .optional()
+              .description("Optionally specify a stage to mint"),
             preferredOrderSource: Joi.string()
               .lowercase()
               .pattern(regex.domain)
@@ -578,6 +581,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
         };
         quantity: number;
         preferredOrderSource?: string;
+        preferredMintStage?: string;
         exactOrderSource?: string;
         exclusions?: {
           orderId: string;
@@ -665,6 +669,8 @@ export const getExecuteBuyV7Options: RouteOptions = {
                 token: collectionMint.contract,
                 quantity: item.quantity,
                 comment: payload.comment,
+                currency: collectionMint.currency,
+                price: collectionMint.price,
               });
 
               await addToPath(
@@ -900,6 +906,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
               // Fetch any open mints on the collection which the taker is elligible for
               const openMints = await mints.getCollectionMints(item.collection, {
                 status: "open",
+                stage: item.preferredMintStage,
               });
 
               for (const mint of openMints) {
@@ -938,6 +945,8 @@ export const getExecuteBuyV7Options: RouteOptions = {
                         token: mint.contract,
                         quantity: quantityToMint,
                         comment: payload.comment,
+                        currency: mint.currency,
+                        price: mint.price,
                       });
 
                       await addToPath(
@@ -1042,6 +1051,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
                 WHERE orders.fillability_status = 'fillable'
                   AND orders.approval_status = 'approved'
                   AND orders.maker != $/taker/
+                ORDER BY orders.value
                 LIMIT $/quantity/
               `,
               {
@@ -1090,6 +1100,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
                 fillType: item.fillType,
                 quantity: 1,
                 originalItemIndex: itemIndex,
+                preferredMintStage: item.preferredMintStage,
               });
             }
 
@@ -1132,6 +1143,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
               const openMints = await mints.getCollectionMints(collectionData.id, {
                 status: "open",
                 tokenId,
+                stage: item.preferredMintStage,
               });
 
               for (const mint of openMints) {
@@ -1164,6 +1176,8 @@ export const getExecuteBuyV7Options: RouteOptions = {
                         token: mint.contract,
                         quantity: quantityToMint,
                         comment: payload.comment,
+                        currency: mint.currency,
+                        price: mint.price,
                       });
 
                       await addToPath(
@@ -2112,8 +2126,9 @@ export const getExecuteBuyV7Options: RouteOptions = {
       await Promise.all(
         listingDetails.map(async (d) => {
           try {
-            const configV1 = await erc721c.v1.getConfig(d.contract);
-            const configV2 = await erc721c.v2.getConfig(d.contract);
+            const configV1 = await erc721c.v1.getConfigFromDb(d.contract);
+            const configV2 = await erc721c.v2.getConfigFromDb(d.contract);
+
             if (
               (configV1 && [4, 6].includes(configV1.transferSecurityLevel)) ||
               (configV2 && [6, 8].includes(configV2.transferSecurityLevel))
@@ -2221,7 +2236,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
           onError: async (kind, error, data) => {
             errors.push({
               orderId: data.orderId,
-              message: error.response?.data ? JSON.stringify(error.response.data) : error.message,
+              message: JSON.stringify(error),
             });
             await fillErrorCallback(kind, error, data);
           },
@@ -2263,7 +2278,13 @@ export const getExecuteBuyV7Options: RouteOptions = {
         // - all minted tokens have the taker as the final owner (eg. nothing gets stuck in the router / module)
 
         let safeToUse = true;
-        for (const { txData } of mintsResult.txs) {
+        for (const { txData, approvals } of mintsResult.txs) {
+          // ERC20 mints (which will have a corresponding approval) need to be minted directly
+          if (approvals.length) {
+            safeToUse = false;
+            continue;
+          }
+
           const events = await getNFTTransferEvents(txData);
           if (!events.length) {
             // At least one successful mint
@@ -2298,10 +2319,10 @@ export const getExecuteBuyV7Options: RouteOptions = {
         }
 
         txs.push(
-          ...mintsResult.txs.map(({ txData, orderIds }) => ({
+          ...mintsResult.txs.map(({ txData, orderIds, approvals }) => ({
             txData,
             orderIds,
-            approvals: [],
+            approvals,
             permits: [],
             preSignatures: [],
           }))
@@ -2424,6 +2445,7 @@ export const getExecuteBuyV7Options: RouteOptions = {
             });
           }
         }
+
         if (signaturesPaymentProcessor.length && !steps[3].items.length) {
           const exchange = new Sdk.PaymentProcessor.Exchange(config.chainId);
           txData.data = exchange.attachTakerSignatures(txData.data, signaturesPaymentProcessor);

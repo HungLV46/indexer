@@ -541,51 +541,55 @@ export const getOrdersAsksV4Options: RouteOptions = {
       }
 
       const result = rawResult.map(async (r) => {
-        return await getJoiOrderObject({
-          id: r.id,
-          kind: r.kind,
-          side: r.side,
-          status: r.status,
-          tokenSetId: r.token_set_id,
-          tokenSetSchemaHash: r.token_set_schema_hash,
-          contract: r.contract,
-          contractKind: r.contract_kind,
-          maker: r.maker,
-          taker: r.taker,
-          prices: {
-            gross: {
-              amount: query.normalizeRoyalties
-                ? r.currency_normalized_value ?? r.price
-                : r.currency_price ?? r.price,
-              nativeAmount: query.normalizeRoyalties ? r.normalized_value ?? r.price : r.price,
+        return await getJoiOrderObject(
+          {
+            id: r.id,
+            kind: r.kind,
+            side: r.side,
+            status: r.status,
+            tokenSetId: r.token_set_id,
+            tokenSetSchemaHash: r.token_set_schema_hash,
+            contract: r.contract,
+            contractKind: r.contract_kind,
+            maker: r.maker,
+            taker: r.taker,
+            prices: {
+              gross: {
+                amount: query.normalizeRoyalties
+                  ? r.currency_normalized_value ?? r.price
+                  : r.currency_price ?? r.price,
+                nativeAmount: query.normalizeRoyalties ? r.normalized_value ?? r.price : r.price,
+              },
+              net: {
+                amount: getNetAmount(r.currency_price ?? r.price, _.min([r.fee_bps, 10000])),
+                nativeAmount: getNetAmount(r.price, _.min([r.fee_bps, 10000])),
+              },
+              currency: r.currency,
             },
-            net: {
-              amount: getNetAmount(r.currency_price ?? r.price, _.min([r.fee_bps, 10000])),
-              nativeAmount: getNetAmount(r.price, _.min([r.fee_bps, 10000])),
-            },
-            currency: r.currency,
+            validFrom: r.valid_from,
+            validUntil: r.valid_until,
+            quantityFilled: r.quantity_filled,
+            quantityRemaining: r.quantity_remaining,
+            criteria: r.criteria,
+            sourceIdInt: r.source_id_int,
+            feeBps: r.fee_bps,
+            feeBreakdown: r.fee_bps === 0 ? [] : r.fee_breakdown,
+            expiration: r.expiration,
+            isReservoir: r.is_reservoir,
+            createdAt: r.created_at,
+            updatedAt: r.updated_at,
+            originatedAt: r.originated_at,
+            rawData: r.raw_data,
+            missingRoyalties: r.missing_royalties,
+            dynamic: r.dynamic,
           },
-          validFrom: r.valid_from,
-          validUntil: r.valid_until,
-          quantityFilled: r.quantity_filled,
-          quantityRemaining: r.quantity_remaining,
-          criteria: r.criteria,
-          sourceIdInt: r.source_id_int,
-          feeBps: r.fee_bps,
-          feeBreakdown: r.fee_bps === 0 ? [] : r.fee_breakdown,
-          expiration: r.expiration,
-          isReservoir: r.is_reservoir,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-          originatedAt: r.originated_at,
-          includeRawData: query.includeRawData,
-          rawData: r.raw_data,
-          normalizeRoyalties: query.normalizeRoyalties,
-          missingRoyalties: r.missing_royalties,
-          includeDynamicPricing: query.includeDynamicPricing,
-          dynamic: r.dynamic,
-          displayCurrency: query.displayCurrency,
-        });
+          {
+            includeRawData: query.includeRawData,
+            includeDynamicPricing: query.includeDynamicPricing,
+            normalizeRoyalties: query.normalizeRoyalties,
+            displayCurrency: query.displayCurrency,
+          }
+        );
       });
 
       return {

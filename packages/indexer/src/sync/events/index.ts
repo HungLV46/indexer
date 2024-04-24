@@ -183,7 +183,13 @@ export const extractEventsBatches = (enhancedEvents: EnhancedEvent[]): EventsBat
       },
       {
         kind: "zora",
-        data: kindToEvents.get("zora") ?? [],
+        data: kindToEvents.get("zora")
+          ? [
+              ...kindToEvents.get("zora")!,
+              ...events.filter((e) => e.kind === "erc721"),
+              ...events.filter((e) => e.kind === "erc1155"),
+            ]
+          : [],
       },
       {
         kind: "rarible",
