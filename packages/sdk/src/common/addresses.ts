@@ -34,6 +34,10 @@ export const Native: ChainIdToAddress = {
   [Network.AstarZkevm]: AddressZero,
   [Network.ApexTestnet]: AddressZero,
   [Network.EvmosTestnet]: AddressZero,
+  [Network.AuraTestnet]: AddressZero,
+  [Network.AuraSerenity]: AddressZero,
+  [Network.AuraEuphoria]: AddressZero,
+  [Network.AuraXstasy]: AddressZero,
 };
 
 // Wrapped native currency
@@ -68,6 +72,10 @@ export const WNative: ChainIdToAddress = {
   [Network.AstarZkevm]: "0xe9cc37904875b459fa5d0fe37680d36f1ed55e38",
   [Network.ApexTestnet]: "0xf470ba53f14B1073cC16839c0f80474105d159a5",
   [Network.EvmosTestnet]: "0xE9cF9154212D862264E794b72B8aB4568Bb50813",
+  [Network.AuraTestnet]: "0xE9cF9154212D862264E794b72B8aB4568Bb50813",
+  [Network.AuraSerenity]: "0x5Db8A2543e7e3Add18389C5ED63757A46A4848C1",
+  [Network.AuraEuphoria]: "0xE9cF9154212D862264E794b72B8aB4568Bb50813",
+  [Network.AuraXstasy]: "0xE9cF9154212D862264E794b72B8aB4568Bb50813",
 };
 
 export const Usdc: ChainIdToAddressList = {
@@ -138,6 +146,10 @@ export const RoyaltyEngine: ChainIdToAddress = {
   [Network.Ancient8Testnet]: "0x8755310f937528173e7c5a106131d79a3601c9d9",
   [Network.Scroll]: "0xc055b6d9fd8146bc76fcd6f944c8669d5279ed95",
   [Network.EvmosTestnet]: "0x135803cA38824Cc8A40aCC67Ea1Bd3D5E6A23082",
+  [Network.AuraTestnet]: "0x135803cA38824Cc8A40aCC67Ea1Bd3D5E6A23082",
+  [Network.AuraSerenity]: "0x8E4B6D854cB9acaD86435D1E396017e1dAb3220A",
+  [Network.AuraEuphoria]: "0x135803cA38824Cc8A40aCC67Ea1Bd3D5E6A23082",
+  [Network.AuraXstasy]: "0x135803cA38824Cc8A40aCC67Ea1Bd3D5E6A23082",
 };
 
 // Uniswap's `SwapRouter02`

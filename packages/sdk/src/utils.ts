@@ -157,6 +157,10 @@ export enum Network {
   BlastSepolia = 168587773,
   ApexTestnet = 70800,
   EvmosTestnet = 9000,
+  AuraTestnet = 1235,
+  AuraSerenity = 1236,
+  AuraEuphoria = 1237,
+  AuraXstasy = 1238,
 }
 
 export type ChainIdToAddress = { [chainId: number]: string };
