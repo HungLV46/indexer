@@ -30,7 +30,7 @@ if (config.doBackgroundWork) {
     }
   });
 
-  cron.schedule("*/15 * * * *", async () => {
+  cron.schedule("*/1 * * * *", async () => {
     try {
       if (await acquireLock("1day-volumes-job-lock", 10)) {
         logger.info("calculate-1day-volumes", "Starting 1day-volumes-lock");
