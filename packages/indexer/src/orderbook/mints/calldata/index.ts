@@ -107,6 +107,7 @@ export const generateCollectionMintTxData = async (
 ): Promise<{
   txData: TxData;
   price: string;
+  priceWithoutFee: string;
   // Whether the mint method has an explicit `recipient` field
   // (in which case we can mint directly rather than going via
   // the router contract when minting via the `relayer` option)
@@ -374,6 +375,7 @@ export const generateCollectionMintTxData = async (
       : "");
 
   let price = collectionMint.price;
+  let priceWithoutFee = collectionMint.priceWithoutFee;
 
   // For DA mints, compute the price just-in-time
   if (
@@ -396,6 +398,7 @@ export const generateCollectionMintTxData = async (
   // First, try get it from the allowlist
   if (!price && allowlistData) {
     price = allowlistData.actual_price ?? 0;
+    priceWithoutFee = allowlistData.price ?? 0;
   }
 
   // Then, try to get it from the `pricePerQuantity` data
@@ -406,6 +409,7 @@ export const generateCollectionMintTxData = async (
     }
 
     price = matchingEntry.price;
+    priceWithoutFee = price;
   }
 
   return {
@@ -416,6 +420,7 @@ export const generateCollectionMintTxData = async (
       value: bn(price!).mul(quantity).toHexString(),
     },
     price: price!,
+    priceWithoutFee: priceWithoutFee!,
     hasExplicitRecipient,
   };
 };

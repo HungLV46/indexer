@@ -68,6 +68,7 @@ export const extractByCollectionERC721 = async (collection: string): Promise<Col
     if (saleDetails.publicSaleActive) {
       // price = on-chain-price + fee
       const price = bn(saleDetails.publicSalePrice).add(fee).toString();
+      const priceWithoutFee = bn(saleDetails.publicSalePrice).toString();
 
       results.push({
         collection,
@@ -117,6 +118,7 @@ export const extractByCollectionERC721 = async (collection: string): Promise<Col
         },
         currency: Sdk.Common.Addresses.Native[config.chainId],
         price,
+        priceWithoutFee,
         maxMintsPerWallet: toSafeNumber(saleDetails.maxSalePurchasePerAddress),
         maxSupply: toSafeNumber(saleDetails.maxSupply),
         startTime: toSafeTimestamp(saleDetails.publicSaleStart),

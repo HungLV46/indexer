@@ -168,6 +168,7 @@ export const postExecuteMintV1Options: RouteOptions = {
           contract: Joi.string().lowercase().pattern(regex.address),
           tokenId: Joi.string().lowercase().pattern(regex.number),
           quantity: Joi.number().unsafe(),
+          mintableQuantity: Joi.string(),
           source: Joi.string().allow("", null),
           currency: Joi.string().lowercase().pattern(regex.address),
           currencySymbol: Joi.string().optional().allow(null),
@@ -181,6 +182,7 @@ export const postExecuteMintV1Options: RouteOptions = {
           buyInQuote: Joi.number().unsafe(),
           buyInRawQuote: Joi.string().pattern(regex.number),
           totalPrice: Joi.number().unsafe(),
+          totalPriceWithoutFee: Joi.number().unsafe(),
           totalRawPrice: Joi.string().pattern(regex.number),
           feesOnTop: Joi.array().items(JoiExecuteFee).description("Can be referral fees."),
           // TODO: To remove, only kept for backwards-compatibility reasons
@@ -230,6 +232,7 @@ export const postExecuteMintV1Options: RouteOptions = {
         contract: string;
         tokenId?: string;
         quantity: number;
+        mintableQuantity: string;
         source: string | null;
         currency: string;
         currencySymbol?: string;
@@ -239,6 +242,7 @@ export const postExecuteMintV1Options: RouteOptions = {
         rawQuote: string;
         // Total price (with fees on top) = price + feesOnTop
         totalPrice?: number;
+        totalPriceWithoutFee?: string;
         totalRawPrice?: string;
         feesOnTop: ExecuteFee[];
         // TODO: To remove, only kept for backwards-compatibility
@@ -263,6 +267,7 @@ export const postExecuteMintV1Options: RouteOptions = {
           maker: string;
           nativePrice: string;
           price: string;
+          priceWithoutFee: string;
           sourceId: number | null;
           currency: string;
           additionalFees?: Sdk.RouterV6.Types.Fee[];
@@ -272,9 +277,11 @@ export const postExecuteMintV1Options: RouteOptions = {
           contract: string;
           tokenId?: string;
           quantity?: number;
+          mintableQuantity?: string;
         }
       ) => {
         const quantity = token.quantity ?? 1;
+        const mintableQuantity = token.mintableQuantity || "1";
         const unitPrice = bn(order.price);
         const additionalFees = order.additionalFees ?? [];
 
@@ -289,10 +296,12 @@ export const postExecuteMintV1Options: RouteOptions = {
           contract: token.contract,
           tokenId: token.tokenId,
           quantity,
+          mintableQuantity,
           source: order.sourceId !== null ? sources.get(order.sourceId)?.domain ?? null : null,
           currency: order.currency,
           currencySymbol: currency.symbol,
           currencyDecimals: currency.decimals,
+          totalPriceWithoutFee: order.priceWithoutFee,
           quote: formatPrice(totalPrice, currency.decimals, true),
           rawQuote: totalPrice.toString(),
           feesOnTop: [
@@ -389,15 +398,11 @@ export const postExecuteMintV1Options: RouteOptions = {
           if (collectionData) {
             const collectionMint = normalizePartialCollectionMint(rawMint);
 
-            const { txData, price, hasExplicitRecipient } = await generateCollectionMintTxData(
-              collectionMint,
-              payload.taker,
-              item.quantity,
-              {
+            const { txData, price, priceWithoutFee, hasExplicitRecipient } =
+              await generateCollectionMintTxData(collectionMint, payload.taker, item.quantity, {
                 comment: payload.comment,
                 referrer: payload.referrer,
-              }
-            );
+              });
             allMintsHaveExplicitRecipient = allMintsHaveExplicitRecipient && hasExplicitRecipient;
 
             const orderId = `mint:${collectionMint.collection}`;
@@ -416,6 +421,7 @@ export const postExecuteMintV1Options: RouteOptions = {
                 maker: collectionMint.contract,
                 nativePrice: price,
                 price: price,
+                priceWithoutFee: priceWithoutFee,
                 sourceId: null,
                 currency: collectionMint.currency,
                 additionalFees: [],
@@ -478,7 +484,7 @@ export const postExecuteMintV1Options: RouteOptions = {
 
               if (quantityToMint > 0) {
                 try {
-                  const { txData, price, hasExplicitRecipient } =
+                  const { txData, price, priceWithoutFee, hasExplicitRecipient } =
                     await generateCollectionMintTxData(mint, payload.taker, quantityToMint, {
                       comment: payload.comment,
                       referrer: payload.referrer,
@@ -502,6 +508,7 @@ export const postExecuteMintV1Options: RouteOptions = {
                       maker: mint.contract,
                       nativePrice: price,
                       price: price,
+                      priceWithoutFee: priceWithoutFee,
                       sourceId: null,
                       currency: mint.currency,
                       additionalFees: [],
@@ -510,6 +517,7 @@ export const postExecuteMintV1Options: RouteOptions = {
                       kind: collectionData.token_kind,
                       contract: mint.contract,
                       quantity: quantityToMint,
+                      mintableQuantity: amountMintable?.toString(),
                     }
                   );
 
@@ -600,7 +608,7 @@ export const postExecuteMintV1Options: RouteOptions = {
 
               if (quantityToMint > 0) {
                 try {
-                  const { txData, price, hasExplicitRecipient } =
+                  const { txData, price, priceWithoutFee, hasExplicitRecipient } =
                     await generateCollectionMintTxData(mint, payload.taker, quantityToMint, {
                       comment: payload.comment,
                       referrer: payload.referrer,
@@ -624,6 +632,7 @@ export const postExecuteMintV1Options: RouteOptions = {
                       maker: mint.contract,
                       nativePrice: price,
                       price: price,
+                      priceWithoutFee: priceWithoutFee,
                       sourceId: null,
                       currency: mint.currency,
                       additionalFees: [],
@@ -633,6 +642,7 @@ export const postExecuteMintV1Options: RouteOptions = {
                       contract: mint.contract,
                       tokenId,
                       quantity: quantityToMint,
+                      mintableQuantity: amountMintable?.toString(),
                     }
                   );
 
