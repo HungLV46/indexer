@@ -5,8 +5,8 @@ import { logger } from "@/common/logger";
 import { bn, fromBuffer, now, toBuffer } from "@/common/utils";
 import { mintsRefreshJob } from "@/jobs/mints/mints-refresh-job";
 import { MintTxSchema, CustomInfo } from "@/orderbook/mints/calldata";
-import { getAmountMinted, getCurrentSupply } from "@/orderbook/mints/calldata/helpers";
-import { simulateCollectionMint } from "@/orderbook/mints/simulation";
+import { getAmountMinted, getCurrentSupply, getStatus } from "@/orderbook/mints/calldata/helpers";
+// import { simulateCollectionMint } from "@/orderbook/mints/simulation";
 
 export type CollectionMintKind = "public" | "allowlist";
 export type CollectionMintStatus = "open" | "closed";
@@ -278,12 +278,12 @@ export const upsertCollectionMint = async (collectionMint: CollectionMint) => {
         "mints-debug",
         JSON.stringify({
           collection: collectionMint.collection,
-          delay: collectionMint.startTime! - now() + 30,
+          delay: collectionMint.startTime! - now() + 1,
         })
       );
       await mintsRefreshJob.addToQueue(
-        { collection: collectionMint.collection },
-        collectionMint.startTime! - now()
+        { collection: collectionMint.collection, stage: collectionMint.stage },
+        collectionMint.startTime! - now() + 1
       );
     }
 
@@ -408,12 +408,12 @@ export const upsertCollectionMint = async (collectionMint: CollectionMint) => {
         "mints-debug",
         JSON.stringify({
           collection: collectionMint.collection,
-          delay: collectionMint.startTime! - now() + 30,
+          delay: collectionMint.startTime! - now() + 1,
         })
       );
       await mintsRefreshJob.addToQueue(
-        { collection: collectionMint.collection },
-        collectionMint.startTime! - now()
+        { collection: collectionMint.collection, stage: collectionMint.stage },
+        collectionMint.startTime! - now() + 1
       );
     }
 
@@ -430,8 +430,10 @@ export const upsertCollectionMint = async (collectionMint: CollectionMint) => {
 };
 
 export const simulateAndUpsertCollectionMint = async (collectionMint: CollectionMint) => {
-  const simulationResult = await simulateCollectionMint(collectionMint);
-  collectionMint.status = simulationResult ? "open" : "closed";
+  // TODO simulate instead of skipping it
+  // const simulationResult = await simulateCollectionMint(collectionMint);
+  // collectionMint.status = simulationResult ? "open" : "closed";
+  collectionMint.status = await getStatus(collectionMint).then((r) => r.status);
 
   return upsertCollectionMint(collectionMint);
 };

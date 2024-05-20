@@ -65,67 +65,69 @@ export const extractByCollectionERC721 = async (collection: string): Promise<Col
     }
 
     // Public sale
-    if (saleDetails.publicSaleActive) {
-      // price = on-chain-price + fee
-      const price = bn(saleDetails.publicSalePrice).add(fee).toString();
+    // if (saleDetails.publicSaleActive) {
+    // price = on-chain-price + fee
+    const price = bn(saleDetails.publicSalePrice).add(fee).toString();
 
-      results.push({
-        collection,
-        contract: collection,
-        stage: "public-sale",
-        kind: "public",
-        status: "open",
-        standard: STANDARD,
-        details: {
-          tx: {
-            to: collection,
-            data:
-              totalRewards == undefined
-                ? {
-                    // `purchase`
-                    signature: "0xefef39a1",
-                    params: [
-                      {
-                        kind: "quantity",
-                        abiType: "uint256",
-                      },
-                    ],
-                  }
-                : {
-                    // `mintWithRewards`
-                    signature: "0x45368181",
-                    params: [
-                      {
-                        kind: "recipient",
-                        abiType: "address",
-                      },
-                      {
-                        kind: "quantity",
-                        abiType: "uint256",
-                      },
-                      {
-                        kind: "comment",
-                        abiType: "string",
-                      },
-                      {
-                        kind: "referrer",
-                        abiType: "address",
-                      },
-                    ],
-                  },
-          },
+    results.push({
+      collection,
+      contract: collection,
+      stage: "public-sale",
+      kind: "public",
+      status: "open",
+      standard: STANDARD,
+      details: {
+        tx: {
+          to: collection,
+          data:
+            totalRewards == undefined
+              ? {
+                  // `purchase`
+                  signature: "0xefef39a1",
+                  params: [
+                    {
+                      kind: "quantity",
+                      abiType: "uint256",
+                    },
+                  ],
+                }
+              : {
+                  // `mintWithRewards`
+                  signature: "0x45368181",
+                  params: [
+                    {
+                      kind: "recipient",
+                      abiType: "address",
+                    },
+                    {
+                      kind: "quantity",
+                      abiType: "uint256",
+                    },
+                    {
+                      kind: "comment",
+                      abiType: "string",
+                    },
+                    {
+                      kind: "referrer",
+                      abiType: "address",
+                    },
+                  ],
+                },
         },
-        currency: Sdk.Common.Addresses.Native[config.chainId],
-        price,
-        maxMintsPerWallet: toSafeNumber(saleDetails.maxSalePurchasePerAddress),
-        maxSupply: toSafeNumber(saleDetails.maxSupply),
-        startTime: toSafeTimestamp(saleDetails.publicSaleStart),
-        endTime: toSafeTimestamp(saleDetails.publicSaleEnd),
-      });
-    }
+      },
+      currency: Sdk.Common.Addresses.Native[config.chainId],
+      price,
+      maxMintsPerWallet: toSafeNumber(saleDetails.maxSalePurchasePerAddress),
+      maxSupply: toSafeNumber(saleDetails.maxSupply),
+      startTime: toSafeTimestamp(saleDetails.publicSaleStart),
+      endTime: toSafeTimestamp(saleDetails.publicSaleEnd),
+    });
+    // }
 
     // Presale
-    if (saleDetails.presaleActive) {
+    // if (saleDetails.presaleActive) {
+    if (saleDetails.presaleMerkleRoot !== 0) {
+      // TODO: define case not specify presale
       const merkleRoot = saleDetails.presaleMerkleRoot;
       if (!(await allowlistExists(merkleRoot))) {
         await axios

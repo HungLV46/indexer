@@ -5,6 +5,7 @@ import { refreshMintsForCollection } from "@/orderbook/mints/calldata";
 
 export type MintsRefreshJobPayload = {
   collection: string;
+  stage?: string;
   forceRefresh?: boolean;
 };
 
@@ -18,11 +19,14 @@ export default class MintsRefreshJob extends AbstractRabbitMqJobHandler {
   } as BackoffStrategy;
 
   public async process(payload: MintsRefreshJobPayload) {
-    const { collection, forceRefresh } = payload;
+    const { collection, stage, forceRefresh } = payload;
 
-    const lockKey = `mints-refresh-lock:${collection}`;
+    const lockKey = `mints-refresh-lock:${collection}${stage ? `:${stage}` : ""}`;
     if (!(await redis.get(lockKey)) || forceRefresh) {
-      logger.info(this.queueName, `Refreshing mints for collection ${collection}`);
+      logger.info(
+        this.queueName,
+        `Refreshing mints for collection ${collection}, lock key: ${lockKey}`
+      );
       await redis.set(lockKey, "locked", "EX", 30 * 60);
       await refreshMintsForCollection(collection);
     }
