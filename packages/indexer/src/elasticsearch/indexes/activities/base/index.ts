@@ -194,7 +194,7 @@ export class ActivityBuilder extends DocumentBuilder {
             txHash: fromBuffer(data.event_tx_hash),
             logIndex: data.event_log_index,
             batchIndex: data.event_batch_index,
-            blockHash: fromBuffer(data.event_block_hash!),
+            blockHash: data.event_block_hash ? fromBuffer(data.event_block_hash!) : undefined,
             fillSourceId: data.event_fill_source_id,
             washTradingScore: data.event_wash_trading_score,
             collectionIsMinting: data.event_collection_is_minting,

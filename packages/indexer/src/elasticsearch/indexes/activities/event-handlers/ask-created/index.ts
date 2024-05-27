@@ -111,6 +111,10 @@ export class AskCreatedEventHandler extends BaseActivityEventHandler {
     data.timestamp = data.originated_ts
       ? Math.floor(data.originated_ts)
       : Math.floor(data.created_ts);
+
+    data.event_tx_hash = this.txHash ? Buffer.from(this.txHash.slice(2)) : undefined;
+    data.event_log_index = this.logIndex;
+    data.event_batch_index = this.batchIndex;
   }
 
   static async generateActivities(events: OrderEventInfo[]): Promise<ActivityDocument[]> {
