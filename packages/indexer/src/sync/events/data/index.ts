@@ -201,6 +201,10 @@ export type EventSubKind =
   | "zora-updated-token"
   | "zora-mint-comment"
   | "zora-custom-mint-comment"
+  | "zora-offer-created"
+  | "zora-offer-updated"
+  | "zora-offer-canceled"
+  | "zora-offer-filled"
   | "nouns-auction-settled"
   | "cryptopunks-punk-offered"
   | "cryptopunks-punk-no-longer-for-sale"
@@ -471,6 +475,10 @@ const allEventData = [
   zora.updatedToken,
   zora.mintComment,
   zora.customMintComment,
+  zora.offerCreated,
+  zora.offerUpdated,
+  zora.offerCanceled,
+  zora.offerFilled,
   nouns.auctionSettled,
   cryptoPunks.punkOffered,
   cryptoPunks.punkNoLongerForSale,

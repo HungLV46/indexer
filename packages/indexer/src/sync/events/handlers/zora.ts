@@ -1,6 +1,7 @@
 import { Result } from "@ethersproject/abi";
 
 import { bn } from "@/common/utils";
+import { PRACTICAL_TIMESTAMP_UPPER_BOUND } from "@/common/constants";
 import { getEventData } from "@/events-sync/data";
 import { EnhancedEvent, OnChainData } from "@/events-sync/handlers/utils";
 import * as utils from "@/events-sync/utils";
@@ -23,6 +24,34 @@ const getOrderParams = (args: Result) => {
     askCurrency,
     sellerFundsRecipient,
     findersFeeBps,
+  };
+};
+
+const getOfferParams = (args: Result) => {
+  const tokenContract = args["tokenContract"].toLowerCase();
+  const tokenId = args["tokenId"].toString();
+  const offer = args["offer"];
+  const askCurrency = offer["currency"].toLowerCase();
+  const askPrice = offer["amount"].toString();
+  const expiry =
+    offer["expiry"].gt(0) && offer["expiry"].lt(PRACTICAL_TIMESTAMP_UPPER_BOUND)
+      ? offer["expiry"].toString()
+      : undefined;
+  const findersFeeBps = offer["findersFeeBps"];
+  const listingFeeBps = offer["listingFeeBps"];
+  const listingFeeRecipient = offer["listingFeeRecipient"].toLowerCase();
+  const offerId = args["id"].toString();
+
+  return {
+    tokenContract,
+    tokenId,
+    offerId,
+    askCurrency,
+    askPrice,
+    expiry,
+    findersFeeBps,
+    listingFeeBps,
+    listingFeeRecipient,
   };
 };
 
@@ -313,6 +342,135 @@ export const handleEvents = async (events: EnhancedEvent[], onChainData: OnChain
           }
         }
 
+        break;
+      }
+
+      case "zora-offer-created":
+      case "zora-offer-updated": {
+        const { args } = eventData.abi.parseLog(log);
+        const offerParams = getOfferParams(args);
+        const maker = args["offer"]["maker"].toLowerCase();
+
+        onChainData.orders.push({
+          kind: "zora-v3",
+          info: {
+            orderParams: {
+              maker,
+              side: "buy",
+              ...offerParams,
+              txHash: baseEventParams.txHash,
+              txTimestamp: baseEventParams.timestamp,
+              txBlock: baseEventParams.block,
+              logIndex: baseEventParams.logIndex,
+              batchIndex: baseEventParams.batchIndex,
+            },
+            metadata: {},
+          },
+        });
+        break;
+      }
+
+      case "zora-offer-canceled": {
+        const { args } = eventData.abi.parseLog(log);
+        const offerParams = getOfferParams(args);
+        const orderId = getOrderId(offerParams);
+
+        onChainData.cancelEventsOnChain.push({
+          orderKind: "zora-v3",
+          orderId,
+          baseEventParams,
+        });
+
+        onChainData.orderInfos.push({
+          context: `cancelled-${orderId}-${baseEventParams.txHash}`,
+          id: orderId,
+          trigger: {
+            kind: "cancel",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+            logIndex: baseEventParams.logIndex,
+            batchIndex: baseEventParams.batchIndex,
+            blockHash: baseEventParams.blockHash,
+          },
+        });
+
+        break;
+      }
+
+      case "zora-offer-filled": {
+        const { args } = eventData.abi.parseLog(log);
+        let taker = args["taker"].toLowerCase();
+        const orderParams = getOfferParams(args);
+        const orderId = getOrderId(orderParams);
+        const maker = args["offer"]["maker"].toLowerCase();
+        const tokenContract = orderParams.tokenContract;
+        const tokenId = orderParams.tokenId;
+        const askCurrency = orderParams.askCurrency;
+        const askPrice = orderParams.askPrice;
+
+        // Handle: attribution
+        const orderKind = "zora-v3";
+        const data = await utils.extractAttributionData(baseEventParams.txHash, orderKind, {
+          orderId,
+        });
+        if (data.taker) {
+          taker = data.taker;
+        }
+
+        // Handle: prices
+        const prices = await getUSDAndNativePrices(
+          askCurrency,
+          askPrice,
+          baseEventParams.timestamp
+        );
+        if (!prices.nativePrice) {
+          // We must always have the native price
+          break;
+        }
+
+        onChainData.fillEventsOnChain.push({
+          orderKind,
+          orderId,
+          currency: askCurrency,
+          orderSide: "buy",
+          maker,
+          taker,
+          price: prices.nativePrice,
+          currencyPrice: askPrice,
+          usdPrice: prices.usdPrice,
+          contract: tokenContract,
+          tokenId,
+          amount: "1",
+          orderSourceId: data.orderSource?.id,
+          aggregatorSourceId: data.aggregatorSource?.id,
+          fillSourceId: data.fillSource?.id,
+          baseEventParams,
+        });
+
+        onChainData.fillInfos.push({
+          context: `zora-${tokenContract}-${tokenId}-${baseEventParams.txHash}`,
+          orderSide: "buy",
+          contract: tokenContract,
+          tokenId,
+          amount: "1",
+          price: prices.nativePrice,
+          timestamp: baseEventParams.timestamp,
+          maker,
+          taker,
+        });
+
+        onChainData.orderInfos.push({
+          context: `filled-${orderId}-${baseEventParams.txHash}`,
+          id: orderId,
+          trigger: {
+            kind: "sale",
+            txHash: baseEventParams.txHash,
+            txTimestamp: baseEventParams.timestamp,
+            logIndex: baseEventParams.logIndex,
+            batchIndex: baseEventParams.batchIndex,
+            blockHash: baseEventParams.blockHash,
+          },
+        });
         break;
       }
     }

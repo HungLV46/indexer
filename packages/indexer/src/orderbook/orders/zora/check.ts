@@ -59,11 +59,17 @@ export const offChainCheck = async (
   let hasApproval = true;
 
   if (order.side === "buy") {
+    // zora offer omnibus auto convert native to wrap token when making offer using native token.
+    const currency =
+      order.askCurrency === Sdk.Common.Addresses.Native[config.chainId]
+        ? Sdk.Common.Addresses.WNative[config.chainId]
+        : order.askCurrency;
+
     // Handle rebasing tokens (where applicable)
-    await onChainData.updateFtBalance(order.askCurrency, order.maker);
+    await onChainData.updateFtBalance(currency, order.maker);
 
     // Check: maker has enough balance
-    const ftBalance = await commonHelpers.getFtBalance(order.askCurrency, order.maker);
+    const ftBalance = await commonHelpers.getFtBalance(currency, order.maker);
     if (ftBalance.lt(order.askPrice)) {
       hasBalance = true;
     }
@@ -73,7 +79,7 @@ export const offChainCheck = async (
         bn(
           await onChainData
             .fetchAndUpdateFtApproval(
-              order.askCurrency,
+              currency,
               order.maker,
               Sdk.Zora.Addresses.Erc20TransferHelper[config.chainId]
             )
@@ -84,6 +90,8 @@ export const offChainCheck = async (
       }
     }
   } else {
+    if (!order.seller) throw new Error("When Side = sell, seller must be specified");
+
     // Check: maker has enough balance
     const nftBalance = await commonHelpers.getNftBalance(
       order.tokenContract,

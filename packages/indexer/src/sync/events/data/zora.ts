@@ -163,3 +163,101 @@ export const customMintComment: EventData = {
     "event MintComment(address indexed tokenContract, uint256 quantity, string comment)",
   ]),
 };
+
+export const offerCreated: EventData = {
+  kind: "zora",
+  subKind: "zora-offer-created",
+  addresses: { [Zora.Addresses.OfferOmnibus[config.chainId]?.toLowerCase()]: true },
+  topic: "0xd4ff8d453ca9a14f218b7a37378eaae3483881d791e68945a494fb387a5dc071",
+  numTopics: 4,
+  abi: new Interface([
+    `event OfferCreated(
+      address indexed tokenContract, 
+      uint256 indexed tokenId, 
+      uint256 indexed id, 
+      (
+        uint256 amount, 
+        address maker, 
+        uint96 expiry, 
+        address currency, 
+        uint16 findersFeeBps, 
+        uint16 listingFeeBps, 
+        address listingFeeRecipient
+      ) offer
+    )`,
+  ]),
+};
+
+export const offerUpdated: EventData = {
+  kind: "zora",
+  subKind: "zora-offer-updated",
+  addresses: { [Zora.Addresses.OfferOmnibus[config.chainId]?.toLowerCase()]: true },
+  topic: "0x8a6eb4ec41ac4eb8fb97c9ec8419f7e73e57347359fe7c3985d130cc017f711b",
+  numTopics: 4,
+  abi: new Interface([
+    `event OfferUpdated(
+      address indexed tokenContract,
+      uint256 indexed tokenId,
+      uint256 indexed id,
+      (
+        uint256 amount, 
+        address maker, 
+        uint96 expiry, 
+        address currency, 
+        uint16 findersFeeBps, 
+        uint16 listingFeeBps, 
+        address listingFeeRecipient
+      ) offer
+    )`,
+  ]),
+};
+
+export const offerCanceled: EventData = {
+  kind: "zora",
+  subKind: "zora-offer-canceled",
+  addresses: { [Zora.Addresses.OfferOmnibus[config.chainId]?.toLowerCase()]: true },
+  topic: "0xe712ac72500662cc095609c4308e6eed18818d0bbd40ede89d4dc22bc3a07e19",
+  numTopics: 4,
+  abi: new Interface([
+    `event OfferCanceled(
+      address indexed tokenContract,
+      uint256 indexed tokenId,
+      uint256 indexed id,
+      (
+        uint256 amount, 
+        address maker, 
+        uint96 expiry, 
+        address currency, 
+        uint16 findersFeeBps, 
+        uint16 listingFeeBps, 
+        address listingFeeRecipient
+      ) offer
+    )`,
+  ]),
+};
+
+export const offerFilled: EventData = {
+  kind: "zora",
+  subKind: "zora-offer-filled",
+  addresses: { [Zora.Addresses.OfferOmnibus[config.chainId]?.toLowerCase()]: true },
+  topic: "0x974607c27672959fd859a90304b230ed0d7b1b4e916c0e0445e9b0f3db3fbe09",
+  numTopics: 4,
+  abi: new Interface([
+    `event OfferFilled(
+      address indexed tokenContract,
+      uint256 indexed tokenId,
+      uint256 indexed id,
+      address taker,
+      address finder,
+      (
+        uint256 amount, 
+        address maker, 
+        uint96 expiry, 
+        address currency, 
+        uint16 findersFeeBps, 
+        uint16 listingFeeBps, 
+        address listingFeeRecipient
+      ) offer
+    )`,
+  ]),
+};
