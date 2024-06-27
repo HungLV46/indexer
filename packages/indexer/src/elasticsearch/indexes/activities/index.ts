@@ -670,11 +670,11 @@ const getPastResults = async (
         },
       ],
 
-      must_not: {
-        term: {
-          "event.washTradingScore": 1,
-        },
-      },
+      // must_not: {
+      //   term: {
+      //     "event.washTradingScore": 1,
+      //   },
+      // },
     },
   } as any;
 
