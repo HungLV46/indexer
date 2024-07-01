@@ -333,6 +333,7 @@ export const getCollectionsV7Options: RouteOptions = {
               endTime: Joi.number().allow(null),
               maxMints: Joi.number().unsafe().allow(null),
               maxMintsPerWallet: Joi.number().unsafe().allow(null),
+              merkleRoot: Joi.string().allow(null),
             })
           ),
           securityConfig: Joi.object({
@@ -404,7 +405,8 @@ export const getCollectionsV7Options: RouteOptions = {
                   'startTime', floor(extract(epoch from collection_mints.start_time)),
                   'endTime', floor(extract(epoch from collection_mints.end_time)),
                   'maxMints', collection_mints.max_supply,
-                  'maxMintsPerWallet', collection_mints.max_mints_per_wallet
+                  'maxMintsPerWallet', collection_mints.max_mints_per_wallet,
+                  'merkleRoot', collection_mints.allowlist_id
                 )
               ) AS mint_stages
             FROM collection_mints
@@ -1010,6 +1012,7 @@ export const getCollectionsV7Options: RouteOptions = {
                       endTime: m.endTime,
                       maxMints: m.maxMints,
                       maxMintsPerWallet: m.maxMintsPerWallet,
+                      merkleRoot: m.merkleRoot,
                     }))
                   )
                 : [],
